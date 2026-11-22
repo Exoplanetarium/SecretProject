@@ -1,0 +1,10 @@
+node_modules/
+dist/
+*.tar.gz
+.sites-local/
+.next/
+.vercel/
+.env*
+!.env.example
+
+.vercel

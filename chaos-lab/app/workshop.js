@@ -1,0 +1,27 @@
+'use client';
+import {useEffect} from 'react';
+import {initWorkshop} from '../src/main';
+import {icon} from '../src/visuals';
+function Icon({name}){return <span className="svg-icon" dangerouslySetInnerHTML={{__html:icon(name)}}/>;}
+function Tool({id,name,label}){return <button id={id} className="tool" title={label} aria-label={label}><Icon name={name}/></button>;}
+export default function Workshop(){
+ useEffect(()=>initWorkshop(),[]);
+ return <div id="workshop">
+ <header><button className="brand" id="home" aria-label="Home"><Icon name="wire"/>little circuit<span>.</span></button><div id="progress" hidden aria-label="Level progress"/><button id="guide-button" className="tool" title="Levels" aria-label="Levels"><Icon name="levels"/></button></header>
+ <main id="game" hidden><aside className="sidebar"><span id="unit-name" className="unit-name">Tutorial</span><div className="level-heading"><span id="level-number">01 / 05</span><span id="goal-icon" aria-label="Incomplete">○</span></div><h1 id="level-title">Complete circuit</h1>
+ <span id="completion-status" className="sr-only" role="status"/>
+ <section id="win" className="completion-card" aria-labelledby="completion-title" hidden>
+ <h2 id="completion-title"><Icon name="check"/>Complete</h2>
+ <p id="win-learning"/>
+ <button id="next" className="paper-button">Next <Icon name="next"/></button>
+ </section>
+ <div id="goal-picture" className="goal-picture"/><div id="challenge-target" hidden/><div id="challenge-readings" hidden aria-live="polite"/><div id="parts"/><div className="sidebar-bottom"><Tool id="hint-button" name="bulb" label="Hint"/><Tool id="replay-lesson" name="help" label="Replay instructions"/><Tool id="save" name="save" label="Save build"/></div><div id="hint" hidden/></aside>
+ <section className="workspace"><div className="workspace-head"><span id="board-status" className="board-indicator" title="Power off" role="status" aria-label="Power off"><i/><i/><i/></span><div><Tool id="pan" name="hand" label="Pan view"/><Tool id="camera" name="camera" label="Reset view"/><Tool id="reset" name="reset" label="Clear board"/></div></div><div id="viewport" role="application" aria-label="Circuit workbench. Drag parts to move them. Click two terminals to connect a wire. Right drag to pan, or use the pan button."/><div id="empty-prompt" aria-hidden="true"><Icon name="hand"/><span className="drop-outline"/></div><div id="selection" hidden><span id="selection-name"/><label id="value-label" hidden><span className="sr-only">Resistance</span><input id="resistor-value" type="range" min="10" max="100" step="10" defaultValue="30"/><output id="resistor-output">30 Ω</output></label><button id="toggle" className="tool" hidden title="Toggle switch" aria-label="Toggle switch"><Icon name="switch"/></button><Tool id="delete" name="trash" label="Remove part"/></div>
+ <section id="teaching" className="teaching-card" aria-label="Lesson instructions" hidden><div className="teaching-meta"><span id="teaching-count"/><button id="skip-teaching" className="small-button">Skip tips</button></div><h2 id="teaching-title"/><p id="teaching-text" aria-live="polite"/><div className="teaching-bottom"><span id="teaching-action"/><button id="teaching-next" className="paper-button">Continue <Icon name="next"/></button></div></section>
+ <div className="workbench-bottom"><span id="wire-hint" className="wire-indicator" hidden><Icon name="wire"/><span className="terminal-dot"/><span className="wire-dash"/><span className="terminal-dot pulse"/><button id="cancel-wire" className="tool" aria-label="Cancel wire" title="Cancel wire"><Icon name="close"/></button></span><div className="control-bar"><button id="power" className="primary" title="Turn on power" aria-label="Turn on power" aria-pressed="false"><Icon name="power"/></button><Tool id="undo" name="undo" label="Undo wire"/><span id="current">0.00 A</span></div></div><div id="toast" role="status" aria-live="polite"/></section></main>
+ <section id="landing"><div id="hero-scene" aria-label="Wooden circuit board with battery, switch and glowing lamp"/><div className="landing-controls"><button id="play" className="primary large"><Icon name="play"/>Play</button><button id="landing-guide" className="secondary"><Icon name="levels"/>Levels</button></div></section>
+ <footer><button id="help-button" className="tool" aria-label="Controls" title="Controls"><Icon name="help"/></button><button id="sound" className="tool" aria-pressed="false" title="Enable sound" aria-label="Enable sound"><Icon name="mute"/></button></footer>
+ <dialog id="guide"><button className="close-dialog tool" aria-label="Close levels"><Icon name="close"/></button><h2>Levels</h2><div id="levels"/></dialog>
+ <dialog id="help"><button className="close-dialog tool" aria-label="Close help"><Icon name="close"/></button><h2>Controls</h2><div className="help-steps"><div><Icon name="hand"/><span>Drag</span></div><div><Icon name="wire"/><span>Connect</span></div><div><Icon name="power"/><span>Power</span></div></div><div className="shortcuts"><span>Right drag or hand button: pan</span><span>Scroll or pinch: zoom</span><span>Two fingers: pan and zoom</span><span><kbd>Esc</kbd> Cancel wire</span><span><kbd>Del</kbd> Remove</span><span><kbd>Space</kbd> Power</span></div><details><summary>Model</summary><p>6 V battery · 20 Ω lamps · 10 to 100 Ω resistors. Brightness follows power. Simplified DC model.</p></details><button className="primary close-help">Close</button></dialog>
+ </div>;
+}

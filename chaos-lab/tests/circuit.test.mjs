@@ -1,0 +1,11 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {solveCircuit,LEVELS} from '../src/circuit.js';
+const battery={id:'b',kind:'battery'},lamp={id:'l',kind:'lamp'},lamp2={id:'k',kind:'lamp'},sw={id:'s',kind:'switch',closed:false},resistor={id:'r',kind:'resistor',resistance:40};
+const w=(a,b)=>({a,b}),loop=[w('b:0','l:0'),w('l:1','b:1')];
+test('open circuit stays dark; closed circuit follows Ohm’s law',()=>{assert.equal(solveCircuit([battery,lamp],loop.slice(0,1)).lit,0);const s=solveCircuit([battery,lamp],loop);assert.equal(s.lit,1);assert.ok(Math.abs(s.current-.3)<.001);assert.ok(LEVELS[0].check(s));});
+test('switch opens and closes a conducting path',()=>{const wires=[w('b:0','s:0'),w('s:1','l:0'),w('l:1','b:1')];assert.equal(solveCircuit([battery,lamp,sw],wires).lit,0);const s=solveCircuit([battery,lamp,{...sw,closed:true}],wires);assert.equal(s.lit,1);assert.ok(LEVELS[1].check(s));});
+test('series resistor reduces current and satisfies resistor lesson',()=>{const s=solveCircuit([battery,lamp,resistor],[w('b:0','r:0'),w('r:1','l:0'),w('l:1','b:1')]);assert.ok(Math.abs(s.current-.1)<.001);assert.ok(LEVELS[6].check(s));});
+test('two lamps in series split voltage and parallel lamps draw more current',()=>{const ps=[battery,lamp,lamp2],series=solveCircuit(ps,[w('b:0','l:0'),w('l:1','k:0'),w('k:1','b:1')]),parallel=solveCircuit(ps,[...loop,w('b:0','k:0'),w('k:1','b:1')]);assert.ok(LEVELS[2].check(series));assert.ok(LEVELS[3].check(parallel));assert.ok(Math.abs(series.current-.15)<.001);assert.ok(Math.abs(parallel.current-.6)<.001);});
+test('direct battery short trips cutoff; disconnected islands stay dark',()=>{assert.ok(solveCircuit([battery,lamp],[w('b:0','b:1')]).short);assert.equal(solveCircuit([battery,lamp,lamp2],[w('l:0','k:0'),w('l:1','k:1')]).lit,0);});
+test('parallel switch controls one branch independently',()=>{const wires=[...loop,w('b:0','s:0'),w('s:1','k:0'),w('k:1','b:1')];assert.equal(solveCircuit([battery,lamp,lamp2,sw],wires).lit,1);assert.equal(solveCircuit([battery,lamp,lamp2,{...sw,closed:true}],wires).lit,2);});
