@@ -1,6 +1,6 @@
 # Little Circuit
 
-Next.js App Router + React + Three.js. A 3D wooden circuit workbench with five guided tutorials, a resistor unit with four lessons and a final challenge, and a sandbox.
+Next.js App Router + React + Three.js. A 3D circuit workshop with Unit 0 on basic circuits, a household resistor bench, a radio repair bench for capacitors, a theater lighting booth for LEDs, an industrial motor bench, and free build. Each of the five units ends with an independent design challenge. Open Levels to start Capacitors, LEDs, or Motors directly.
 
 ## Local development
 
@@ -35,9 +35,21 @@ This creates a preview deployment. After reviewing it, `npx vercel --prod` publi
 
 ## Model and saves
 
-One ideal 6 V battery, fixed 20 Ω lamps, 10 to 100 Ω resistors, and 0.01 Ω wires/closed switches. Brightness follows lamp power. A 3 A virtual cutoff handles shorts. This is an educational approximation.
+One ideal 6 V battery, fixed 20 Ω lamps, 10 to 100 Ω resistors, and 0.01 Ω wires/closed switches. Capacitor modules use a 0.10 F capacitor and 12 Ω series resistance. Stage signals use a directional 2 V LED and 20 Ω internal resistance. Motors use a fixed 30 Ω load and a signed speed proportional to motor voltage, reaching 180 rpm at 6 V. Power off pauses the simulation. Brightness follows lamp power. A 3 A virtual cutoff handles shorts. This is an educational approximation.
 
 Builds and progression stay in localStorage on the current browser and origin. Progress on the previous hosted origin does not automatically transfer to a Vercel origin. Models and wood textures are generated in code; Google Fonts have local system fallbacks.
+
+## Accounts and cloud progress
+
+Clerk provides email/password sign-up, verification, sign-in, and password recovery. The app does not receive or store passwords. Signed-in accounts can open every level; guests retain normal lesson progression. Cloud saves are private Vercel Blob files accessed only through authenticated server routes. Guest progress and account progress use separate browser keys. Existing guest progress is not imported into an account.
+
+To enable cloud saves:
+
+1. Configure a Clerk application and add its publishable and secret keys to the local development environment and the Vercel project. Keep secret keys out of source control.
+2. In the Vercel project Storage tab, create a **private** Blob store and connect it to Development, Preview, and Production. Vercel's OIDC credentials are preferred for deployed functions.
+3. For local cloud-save testing, link the project with Vercel CLI and run `vercel env pull` to load the development Blob connection.
+
+Without a connected Blob store, accounts can still sign in and use their separate local account save, but progress will not sync between devices.
 
 ## Workspace
 
