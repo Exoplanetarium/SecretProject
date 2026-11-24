@@ -188,7 +188,10 @@ function makeCanvas(w,h){
 function drawPlate(ctx,w,h,bg,fg,text,font){
  ctx.fillStyle=bg;ctx.fillRect(0,0,w,h);
  ctx.fillStyle=fg;ctx.font=font;ctx.textAlign='center';ctx.textBaseline='middle';
- ctx.fillText(text,w/2,h/2,w-16);
+ const metrics=ctx.measureText(text);
+ const dy=Number.isFinite(metrics.actualBoundingBoxAscent)&&Number.isFinite(metrics.actualBoundingBoxDescent)
+  ?(metrics.actualBoundingBoxAscent-metrics.actualBoundingBoxDescent)/2:0;
+ ctx.fillText(text,w/2,h/2+dy,w-16);
 }
 
 function coilRelay(part,g,paint,steel,rim){
@@ -286,8 +289,8 @@ function bitReadout(part,g,paint,steel,rim){
  if(canvas){
   const ctx=canvas.getContext('2d'),tex=new T.CanvasTexture(canvas);
   tex.colorSpace=T.SRGBColorSpace;
-  drawPlate(ctx,256,128,'#131922','#49525e','0','bold 92px monospace');
-  const screen=mesh(housing,new T.PlaneGeometry(1.88,.86),new T.MeshBasicMaterial({map:tex}),0,0,.43);
+  drawPlate(ctx,256,128,'#131922','#49525e','0','bold 82px monospace');
+  const screen=mesh(housing,new T.PlaneGeometry(1.88,.86),new T.MeshBasicMaterial({map:tex}),0,0,.435);
   screen.userData.ownedMaterial=true;
   part.displayCanvas=canvas;part.displayCtx=ctx;part.displayTex=tex;
   part.shownValue=-1;part.shownOn=false;
@@ -487,7 +490,7 @@ export function updateDeviceVisual(part,state,activity,powered,elapsed=0){
   for(let i=0;i<4;i++)part.bitLamps[i].emissiveIntensity=powered&&((val>>i)&1)?2.8:0;
   if(part.displayCtx&&(part.shownValue!==val||part.shownOn!==powered)){
    part.shownValue=val;part.shownOn=powered;
-   drawPlate(part.displayCtx,256,128,'#131922',powered?'#ffca67':'#49525e',powered?String(val):'-','bold 92px monospace');
+   drawPlate(part.displayCtx,256,128,'#131922',powered?'#ffca67':'#49525e',powered?String(val):'-','bold 82px monospace');
    part.displayTex.needsUpdate=true;
   }
  }

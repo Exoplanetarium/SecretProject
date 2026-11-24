@@ -20,21 +20,25 @@ function bench(id){
  return {parts,wires,activity,wire,tick};
 }
 
-test('photo meter requires shadow followed by light with its own test supply',()=>{
- const b=bench('light-meter');
- assert.equal(b.tick(0,false).activityPassed,false);
- b.activity.shadow=0;
- assert.equal(b.tick(0,false).designReading,'10000 Ω');
- b.activity.shadow=6;
- assert.equal(b.tick(0,false).activityPassed,true);
+test('photoresistor standalone meter level is removed from Unit 1',()=>{
+ assert.equal(activities.some(l=>l.id==='light-meter'),false);
 });
 
-test('house breaker starts overloaded and the two stair lights can share one resistor',()=>{
+test('house breaker starts overloaded and default resistance fails until stair lights are wired in series at <= 20 Ω',()=>{
  const b=bench('house-breaker');
- assert.ok(b.tick().current>.5);
- b.wires.splice(1,1);
- b.wire('2:0','5:0');b.wire('5:1','3:0');
- assert.equal(b.tick().activityPassed,true);
+ assert.equal(b.parts[4].resistance,60);
+ assert.ok(b.tick().current>.42);
+ // Rewiring Landing and Stairs in series with starter 60 Ω or default 30 Ω is still too dim (< 0.10 A).
+ b.wires.length=0;
+ b.wire('1:0','2:0');b.wire('2:1','1:1');
+ b.wire('1:0','5:0');b.wire('5:1','3:0');b.wire('3:1','4:0');b.wire('4:1','1:1');
+ assert.equal(b.tick().activityPassed,false);
+ b.parts[4].resistance=30;
+ assert.equal(b.tick().activityPassed,false);
+ b.parts[4].resistance=20;
+ const pass=b.tick();
+ assert.ok(Math.abs(pass.current-.4)<.001);
+ assert.equal(pass.activityPassed,true);
 });
 
 test('larger capacitor keeps its lamp lit longer and the timer measures the bell input',()=>{

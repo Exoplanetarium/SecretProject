@@ -16,15 +16,14 @@ export function sensorContacts(p,parts,connected,light){
 const device=(kind,x,z,settings={})=>({kind,x,z,...settings});
 const battery=device('battery',-5,3), resistor=device('resistor',0,3), cap=device('capacitor',3,-1);
 const led=(x,z,color='red')=>device('led',x,z,{color});
-const fixture=(parts,connections=[])=>({parts:parts.map((p,i)=>({...p,id:'p'+(i+1),resistance:30})),wires:connections.map(([a,b])=>({a:'p'+a,b:'p'+b}))});
+const fixture=(parts,connections=[])=>({parts:parts.map((p,i)=>({resistance:30,...p,id:'p'+(i+1)})),wires:connections.map(([a,b])=>({a:'p'+a,b:'p'+b}))});
 const leads=(...pairs)=>pairs.map(pair=>pair.split('-').map(pin=>pin.replace('.',':')));
 const twoLeds=[battery,led(1,-2),led(5,2)];
 function activity(id,unit,title,goal,hint,layout,parts,extra={}){
  return {id,unit,title,goal,hint,parts,layout,diagram:id,activity:true,check:s=>s.activityPassed===true,ending:extra.ending||goal,...extra};
 }
 export const activities=[
- activity('light-meter','Resistors','Photoresistor','Move the shade over the sensor. Then find a spot below 700 Ω on the meter.','Drag the shade or move its slider. Resistance rises in shadow and falls in light. The meter supplies its own test current.',fixture([device('photo',0,0)]),['photo'],{ending:'The photoresistor had its lowest resistance in bright light.'}),
- activity('house-breaker','Resistors','Keep the lights on','Keep the reading lamp bright and both stair lights on under the 0.50 A breaker limit. Use one resistor.','All three lamps start in parallel. Try placing the resistor where only the two stair lights share its current.',fixture([battery,device('lamp',-6,-2,{role:'Reading'}),device('lamp',1,-2,{role:'Landing'}),device('lamp',7,-2,{role:'Stairs'}),resistor],leads('1.0-2.0','2.0-3.0','3.0-4.0','1.1-2.1','2.1-3.1','3.1-4.1')),['battery','lamp','resistor'],{challenge:true,target:'Reading lamp ≥ 0.28 A · total ≤ 0.50 A',ending:'Only the stair lights shared the resistor. The reading lamp kept its full voltage.'}),
+ activity('house-breaker','Resistors','Keep the lights on','Keep the reading lamp bright and both stair lights at least 0.10 A each under the 0.42 A breaker limit. Use one resistor.','All three lamps start in parallel. Wiring the two stair lights in series lets one current power both. Tune the resistor in that stair branch to stay at or under 0.42 A.',fixture([battery,device('lamp',-6,-2,{role:'Reading'}),device('lamp',1,-2,{role:'Landing'}),device('lamp',7,-2,{role:'Stairs'}),device('resistor',0,3,{resistance:60})],leads('1.0-2.0','2.0-3.0','3.0-4.0','1.1-2.1','2.1-3.1','3.1-4.1')),['battery','lamp','resistor'],{challenge:true,target:'Reading ≥ 0.28 A · Stairs ≥ 0.10 A each · Total ≤ 0.42 A',ending:'Putting the two stair lights in series let one branch current power both under the 0.42 A breaker while the reading lamp stayed bright.'}),
  activity('capacity-compare','Capacitors','Capacitor size','Charge both capacitors to 6 V. Watch which lamp stays on longer.','Each isolated loop uses the same 20 Ω lamp. Select Charge and release and compare the gauges.',fixture([device('capacitor',-4,-1,{capacitance:.1,role:'0.10 F'}),device('lamp',-4,2),device('capacitor',4,-1,{capacitance:.22,role:'0.22 F'}),device('lamp',4,2)],leads('1.0-2.0','1.1-2.1','3.0-4.0','3.1-4.1')),['capacitor','lamp'],{ending:'At the same voltage the larger capacitor stored more charge and lit its lamp for longer.'}),
  activity('timer-bell','Capacitors','Three-second bell','Make the bell ring three seconds after Test. It senses 3 V across its terminals.','Charge the capacitor through a resistor. Put the bell across the capacitor module. Compare your times as you adjust resistance.',fixture([battery,resistor,cap,device('bell',7,2)],leads('1.0-2.0','2.1-3.0','3.1-1.1')),['battery','resistor','capacitor','bell'],{challenge:true,target:'2.7–3.3 seconds',ending:'The capacitor voltage crossed the bell threshold at the requested time.'}),
  activity('led-series','LEDs','Series footlights','Power both red footlights. Unplug one lead with the pliers and see what happens.','In one loop the same current passes through both LEDs.',fixture(twoLeds,leads('1.0-2.0','2.1-3.0','3.1-1.1')),['battery','led'],{ending:'Opening the shared current path put both footlights out.'}),
@@ -56,13 +55,10 @@ export function measureActivity(lesson,parts,wires,s,a,on,dt){
  const voltage=p=>on&&p?(s.voltages[p.id+':0']||0)-(s.voltages[p.id+':1']||0):0;
  const leds=kind('led'),lit=leds.filter(p=>amp(p)>.002),caps=kind('capacitor'),lamps=kind('lamp');
  let reading='';
- if(id==='light-meter'){
-  s.meterActive=true;
-  const p=kind('photo')[0];if(p){const ohms=photoOhms(p.x,a.shadow,p.z);reading=ohms+' Ω';if(ohms>8000)a.seen.add('shade');if(a.seen.has('shade')&&ohms<700)a.passed=true;}
- }else if(id==='house-breaker'){
+ if(id==='house-breaker'){
   const currents=['Reading','Landing','Stairs'].map(role=>amp(lamps.find(p=>p.role===role)));
   reading=a.tripped?'Breaker tripped · rewire and restore power':currents.map((v,i)=>['Reading','Landing','Stairs'][i]+' '+v.toFixed(2)+' A').join(' · ');
-  if(on&&s.current<=.5&&currents[0]>=.28&&currents.slice(1).every(v=>v>=.045)&&kind('resistor').length===1&&amp(kind('resistor')[0])>.04)a.passed=true;
+  if(on&&s.current<=.4201&&currents[0]>=.28&&currents.slice(1).every(v=>v>=.098)&&kind('resistor').length===1&&amp(kind('resistor')[0])>.04)a.passed=true;
  }else if(id==='capacity-compare'){
   reading=caps.map(p=>capacity(p).toFixed(2)+' F · '+Math.abs(p.charge||0).toFixed(2)+' V').join(' / ');
   if(a.running&&s.lit===2)a.seen.add('both');

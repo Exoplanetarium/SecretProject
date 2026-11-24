@@ -9,8 +9,8 @@ const guidedSteps=[
  [step('Switch just one branch','Put a switch in only one of the parallel paths. The other path should stay complete. Follow the sketch to find which branch contains the switch.','#goal-picture'),step('Build and test','Wire a battery, two lamps, and a switch. Close the switch and power on so both lamps light.','[data-kind="switch"]','two-lit'),step('Open one branch','Open the switch. One lamp should go dark while the other stays on. The battery still has a complete path through that lamp.','#viewport','branch-control')],
  [step('Resistor symbol','A resistor limits current. Its zigzag symbol goes in the same path as the lamp. Resistance is measured in ohms (Ω).','#goal-picture'),step('Connect a resistor','Wire a battery, a table lamp, and a resistor in a single loop. Turn on power.','[data-kind="resistor"]','resistor-lit'),step('Increase resistance','Select the resistor and raise it to at least 50 Ω. Watch the current reading fall and the lamp dim.','#value-label','higher-resistance')],
  [step('Choose the current','For this model, I = V ÷ R. The battery is 6 V and the lamp already adds 20 Ω. To get 0.10 A, the whole loop needs 60 Ω.','#goal-picture'),step('Set the current','Connect a battery, lamp, and resistor in one loop. Select the resistor and find the value that makes the current 0.10 A.','#current','target-current')],
- [step('Resistors in series add','Two 30 Ω resistors in one path add to 60 Ω. With the 20 Ω lamp, that makes 80 Ω in total: 6 V ÷ 80 Ω = 0.075 A.','#goal-picture'),step('Combine two resistors','Build one path through two resistors and one lamp. Use the resistor sliders to reach 0.075 A.','#viewport','series-resistors')],
- [step('Parallel resistance','Two equal 30 Ω resistors in parallel act like 15 Ω. Put that pair in series with the 20 Ω lamp: 6 V ÷ 35 Ω ≈ 0.17 A.','#goal-picture'),step('Connect parallel resistors','Build two resistor branches that join before the lamp. Set each resistor to 30 Ω and power on.','#viewport','parallel-resistors')],
+ [step('Resistors in series add','Resistors along one path add together: R_total = R1 + R2 + R_lamp. Use V = 6 V and the 20 Ω lamp to find what the two resistors must total.','#goal-picture'),step('Combine two resistors','Build one path through two resistors and one lamp. Adjust the resistors to reach 0.060 A.','#viewport','series-resistors')],
+ [step('Parallel resistance','Two resistors in parallel lower combined resistance: 1/R_pair = 1/R1 + 1/R2 (two equal resistors act like R ÷ 2).','#goal-picture'),step('Connect parallel resistors','Build two resistor branches that join in series with the 20 Ω lamp. Choose resistor values to reach 0.15 A.','#viewport','parallel-resistors')],
  [step('Resistor challenge','Use one 6 V battery, two lamps, and two resistors. Build separate branches so one lamp carries 0.10 A and the other carries 0.20 A. Check the branch readings below.','#challenge-target')],
  ...newLessons.map(l=>[step(l.title,l.goal,'#viewport','unit-goal')]),
  []
@@ -30,8 +30,8 @@ export function stepSatisfied(when,{parts,wires,pending,powered,state}){
  case 'branch-control':return powered&&state.branchControl&&state.lit===1;
  case 'resistor-lit':return powered&&state.singleResistor;case 'higher-resistance':return powered&&state.singleResistor&&parts.some(p=>p.kind==='resistor'&&p.resistance>=50);
  case 'target-current':return powered&&state.singleResistor&&Math.abs(state.current-.1)<.002;
- case 'series-resistors':return powered&&state.seriesResistors&&Math.abs(state.current-.075)<.002;
- case 'parallel-resistors':return powered&&state.parallelResistors&&Math.abs(state.current-6/35)<.003;
+ case 'series-resistors':return powered&&state.seriesResistors&&Math.abs(state.current-.06)<.002;
+ case 'parallel-resistors':return powered&&state.parallelResistors&&Math.abs(state.current-.15)<.002;
  default:return false;
  }
 }
@@ -75,4 +75,11 @@ export function canAccessLevel(index,completed,signedIn=false){
  const prerequisites=unitLessons.slice(0,unitLessons.indexOf(lesson));
  if(lesson.unit==='Resistors')prerequisites.push(...LEVELS.filter(other=>other.unit==='Unit 0'&&!other.challenge));
  return prerequisites.every(other=>completed.includes(LEVELS.indexOf(other)));
+}
+export function nextPlayLevel(completed,lastLevel=null,signedIn=false){
+ if(Number.isInteger(lastLevel)&&LEVELS[lastLevel]&&LEVELS[lastLevel].id!=='sandbox'&&!completed.includes(lastLevel)&&canAccessLevel(lastLevel,completed,signedIn)){
+  return lastLevel;
+ }
+ const next=LEVELS.findIndex((l,i)=>l.id!=='sandbox'&&!completed.includes(i)&&canAccessLevel(i,completed,signedIn));
+ return next>=0?next:LEVELS.findIndex(l=>l.id==='sandbox');
 }
