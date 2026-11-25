@@ -1,4 +1,5 @@
 export const BOARD={width:28,depth:22,margin:1.5,lessonLimit:64,freeLimit:256};
+export const FREE_BOARD={width:48,depth:34,margin:1.5};
 const moduleBounds={side:1.2,back:.85,front:.85};
 const tableLampBounds={side:2.65,back:4.2,front:.85};
 const instruments={
@@ -38,26 +39,27 @@ export function rotatedBounds(kind,household=false,rotation=0){
 
 export function boardPosition(x,z,free=false,kind,household=false,rotation=0){
  const snap=n=>Math.round(n*2)/2;
- if(free)return {x:snap(x),z:snap(z)};
+ const area=free?FREE_BOARD:BOARD;
  const b=rotatedBounds(kind,household,rotation);
- const minX=Math.max(-BOARD.width/2+BOARD.margin,Math.ceil((-BOARD.width/2+b.left)*2)/2);
- const maxX=Math.min(BOARD.width/2-BOARD.margin,Math.floor((BOARD.width/2-b.right)*2)/2);
- const minZ=Math.max(-BOARD.depth/2+BOARD.margin,Math.ceil((-BOARD.depth/2+b.back)*2)/2);
- const maxZ=Math.min(BOARD.depth/2-BOARD.margin,Math.floor((BOARD.depth/2-b.front)*2)/2);
+ const minX=Math.max(-area.width/2+area.margin,Math.ceil((-area.width/2+b.left)*2)/2);
+ const maxX=Math.min(area.width/2-area.margin,Math.floor((area.width/2-b.right)*2)/2);
+ const minZ=Math.max(-area.depth/2+area.margin,Math.ceil((-area.depth/2+b.back)*2)/2);
+ const maxZ=Math.min(area.depth/2-area.margin,Math.floor((area.depth/2-b.front)*2)/2);
  return {x:Math.max(minX,Math.min(maxX,snap(x))),z:Math.max(minZ,Math.min(maxZ,snap(z)))};
 }
-export function partFits(parts,x,z,kind,household=false,except=null,rotation=0){
+export function partFits(parts,x,z,kind,household=false,except=null,rotation=0,layer=0){
  const moving=rotatedBounds(kind,household,rotation);
  return parts.every(p=>{
   if(p===except)return true;
+  if((p.layer||0)!==(layer||0))return true;
   const other=rotatedBounds(p.kind,household,p.rotation||0);
   return x-moving.left>=p.x+other.right||x+moving.right<=p.x-other.left||z-moving.back>=p.z+other.front||z+moving.front<=p.z-other.back;
  });
 }
-export function findSpace(parts,anchor={x:0,z:0},free=false,kind,household=false,rotation=0){
+export function findSpace(parts,anchor={x:0,z:0},free=false,kind,household=false,rotation=0,layer=0){
  const candidates=[];
  for(let z=-10;z<=10;z++)for(let x=-10;x<=10;x++)candidates.push({x:anchor.x+x*2.7,z:anchor.z+z*2.1,d:x*x+z*z});
  candidates.sort((a,b)=>a.d-b.d||a.z-b.z||a.x-b.x);
- for(const p of candidates){const pos=boardPosition(p.x,p.z,free,kind,household,rotation);if(partFits(parts,pos.x,pos.z,kind,household,null,rotation))return pos;}
+ for(const p of candidates){const pos=boardPosition(p.x,p.z,free,kind,household,rotation);if(partFits(parts,pos.x,pos.z,kind,household,null,rotation,layer))return pos;}
  return null;
 }

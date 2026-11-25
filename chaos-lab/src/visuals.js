@@ -7,6 +7,7 @@ const paths={
  power:'<path d="M12 3v9m-6-7a9 9 0 1 0 12 0"/>',
  pliers:'<g transform="rotate(-35 12 12)"><path d="m9 2 1 6 3 3c2 2 3 6 4 10m-2-19-1 6-3 3c-2 2-3 6-4 10"/><path d="m8.7 15-2 6m8.6-6 2 6" stroke-width="3.3"/><circle cx="12" cy="10" r="1.6" fill="currentColor"/></g>',
  reset:'<path d="M4 10a8 8 0 1 1 1 8M4 3v7h7"/>',
+ undo:'<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
  rotate:'<path d="M20 10a8 8 0 1 0-1.5 8M20 3v7h-7"/>',
  camera:'<circle cx="12" cy="12" r="7"/><path d="M12 1v6m0 10v6M1 12h6m10 0h6"/>',
  help:'<circle cx="12" cy="12" r="9"/><path d="M9 9a3 3 0 1 1 5 2c-2 1-2 2-2 3m0 3h.01"/>',

@@ -1,5 +1,6 @@
 import {existingLevels,LEVELS} from './circuit.js';
 import {newLessons} from './units.js';
+import {normalizeSandboxSlots} from './sandbox.js';
 const step=(title,text,target,when)=>({title,text,target,when});
 const guidedSteps=[
  [step('Place a battery','Drag the battery from the parts tray onto the board. You can also click to place it.','[data-kind="battery"]','battery'),step('Add a lamp','Drag a lamp onto the board. Leave a little room between the parts.','[data-kind="lamp"]','lamp'),step('Circuit diagram','The long and short lines represent the battery. The circle with a cross represents the lamp. Lines show wires. You can place the parts anywhere on the board.','#goal-picture'),step('Start a wire','Click a gold terminal on either part. The loose wire will follow your pointer.','#viewport','wire-start'),step('Connect the other end','Click a terminal on the other part to attach the wire.','#viewport','wire'),step('Close the loop','Connect the two unused terminals. Current needs a complete path from the battery, through the lamp, and back.','#goal-picture','loop'),step('Turn on power','Press power. A complete loop lights the lamp. The moving dots show conventional current flow.','#power','lit')],
@@ -109,25 +110,52 @@ export function restoreProgress(raw,legacy,previous){
   const i=current(key);
   if(i!==undefined&&LEVELS[i].id!=='sandbox'&&!completed.includes(i))completed.push(i);
  }
- return {completed,boards};
+ const sandboxSlots=data?.sandboxSlots?normalizeSandboxSlots(data.sandboxSlots):null;
+ return {completed,boards,sandboxSlots};
 }
-export function encodeProgress(completed,boards){
- return {version:5,completed:completed.map(i=>LEVELS[i].id),
+export function encodeProgress(completed,boards,sandboxSlots=null){
+ const out={version:5,completed:completed.map(i=>LEVELS[i].id),
   boards:Object.fromEntries(Object.entries(boards).map(([i,board])=>[LEVELS[i].id,board]))};
+ if(sandboxSlots)out.sandboxSlots=normalizeSandboxSlots(sandboxSlots);
+ return out;
 }
-export function canAccessLevel(index,completed,signedIn=false){
+export const CAMPAIGN_UNITS=['Tutorial','Resistors','Capacitors','LEDs','Motors','Observatory'];
+export function chapterGateLevel(unitName){
+ const unitIdx=CAMPAIGN_UNITS.indexOf(unitName);
+ if(unitIdx<=0)return null;
+ const prevLessons=LEVELS.filter(l=>l.unit===CAMPAIGN_UNITS[unitIdx-1]);
+ return prevLessons[prevLessons.length-1]||null;
+}
+export function levelLockReason(index,completed=[],signedIn=false,unlockAll=false){
+ if(canAccessLevel(index,completed,signedIn,unlockAll))return null;
+ const lesson=LEVELS[index];
+ if(!lesson)return 'Locked';
+ if(!signedIn)return 'Sign in to unlock';
+ const gate=chapterGateLevel(lesson.unit);
+ if(gate&&!completed.includes(LEVELS.indexOf(gate)))return `Complete ${gate.title} to unlock`;
+ const unitLessons=LEVELS.filter(other=>other.unit===lesson.unit);
+ const pos=unitLessons.indexOf(lesson);
+ const prev=unitLessons.slice(0,pos).find(other=>!completed.includes(LEVELS.indexOf(other)));
+ return prev?`Complete ${prev.title} to unlock`:'Locked';
+}
+export function canAccessLevel(index,completed,signedIn=false,unlockAll=false){
  const lesson=LEVELS[index];
  if(!lesson)return false;
- if(signedIn||lesson.library||lesson.master||completed.includes(index)||lesson.id==='sandbox')return true;
+ if(lesson.library||lesson.master||lesson.id==='sandbox')return true;
+ if(signedIn&&unlockAll)return true;
  const unitLessons=LEVELS.filter(other=>other.unit===lesson.unit);
- const prerequisites=unitLessons.slice(0,unitLessons.indexOf(lesson));
- if(lesson.unit==='Resistors')prerequisites.push(...LEVELS.filter(other=>other.unit==='Unit 0'&&!other.challenge));
+ const posInUnit=unitLessons.indexOf(lesson);
+ if(!signedIn)return lesson.unit==='Tutorial'||posInUnit===0;
+ if(completed.includes(index))return true;
+ const gate=chapterGateLevel(lesson.unit);
+ if(gate&&!completed.includes(LEVELS.indexOf(gate)))return false;
+ const prerequisites=unitLessons.slice(0,posInUnit);
  return prerequisites.every(other=>completed.includes(LEVELS.indexOf(other)));
 }
-export function nextPlayLevel(completed,lastLevel=null,signedIn=false){
- if(Number.isInteger(lastLevel)&&LEVELS[lastLevel]&&LEVELS[lastLevel].id!=='sandbox'&&!completed.includes(lastLevel)&&canAccessLevel(lastLevel,completed,signedIn)){
+export function nextPlayLevel(completed,lastLevel=null,signedIn=false,unlockAll=false){
+ if(Number.isInteger(lastLevel)&&LEVELS[lastLevel]&&LEVELS[lastLevel].id!=='sandbox'&&!completed.includes(lastLevel)&&canAccessLevel(lastLevel,completed,signedIn,unlockAll)){
   return lastLevel;
  }
- const next=LEVELS.findIndex((l,i)=>l.id!=='sandbox'&&!completed.includes(i)&&canAccessLevel(i,completed,signedIn));
+ const next=LEVELS.findIndex((l,i)=>l.id!=='sandbox'&&!completed.includes(i)&&canAccessLevel(i,completed,signedIn,unlockAll));
  return next>=0?next:LEVELS.findIndex(l=>l.id==='sandbox');
 }

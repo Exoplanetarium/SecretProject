@@ -24,19 +24,18 @@ Master Challenges sit outside the component-learning curriculum (`The Library`).
 - **Difficulty:** Medium
 - **Goal:** Build a self-sustaining basketball machine that makes **10 consecutive baskets** hands-off after turning Power ON.
 - **Fixed Fixture:**
-  - Non-movable hoop and backboard (prevents cheesing target distance).
-  - 3-ball cannon magazine.
-  - Return conveyor belt beneath the hoop leading back into the cannon hopper.
+  - Clean starter board with only the 3 fixed fixtures (`6 V` battery, court-mounted `Ball cannon`, and belt-coupled `Belt motor`).
+  - Non-movable hoop, backboard, 3-ball magazine hopper, and return conveyor belt mechanically coupled by a PTO V-belt and telescoping drive shaft to the `Belt motor`.
 - **Mechanics:**
-  - **Cannon (`1 MΩ` idle sense input):** Fires one ball per cadence cycle (2.5 s) using the voltage across its terminals as launch power:
+  - **Cannon (`1 MΩ` idle sense input):** Directly connectable on the court (`+` / `−` terminals) and bolted in place (`locked`). Fires one ball per cadence cycle (2.4 s) using the voltage across its terminals as launch power:
     - `< 3.8 V`: Airball (falls short of the hoop).
     - `3.8 V to 4.7 V`: Swish (drops cleanly through the hoop onto the return belt).
     - `> 4.7 V`: Brick (hits high off the backboard and bounces out of bounds).
   - Draws a faint dotted parabola arc trail after each shot so the player can read under-power vs. over-power visually.
   - **Auto-discharge:** Immediately dumps terminal voltage down to `0 V` for `0.2 s` after firing, resetting any capacitor across the cannon before the next charge cycle (wiring raw `6 V` directly bricks and shorts/overloads on discharge).
-  - **Return conveyor belt:** Driven by `motor`. Correct polarity carries scored balls back up to reload the cannon (`ammo++`, max 3); reversed polarity dumps balls off-court; running too slowly lets the 3-ball magazine run empty.
+  - **Return conveyor belt:** Mechanically driven by `Belt motor` via V-belt PTO + drive shaft. Correct polarity carries scored balls back up to reload the cannon (`ammo++`, max 3); reversed polarity rolls balls off-court and breaks the streak; running unpowered lets the 3-ball magazine run empty.
 - **Hint:** `"Pair a resistor with the capacitor (an RC combo) or trim with the potentiometer so voltage lands in the sweet spot each cycle. Keep the return belt spinning the right way."`
-- **Parts Tray:** `battery`, `cannon`, `motor`, `resistor`, `capacitor`, `pot`, `meter`, `rail`.
+- **Parts Tray:** `resistor`, `capacitor`, `pot`, `meter`, `rail`.
 
 ### 1.1 · Free Throw
 
@@ -45,7 +44,7 @@ Master Challenges sit outside the component-learning curriculum (`The Library`).
 - **Constraint:** No potentiometer. Identical fixture, cannon/belt physics, and **10 consecutive baskets** hands-off win condition as Challenge 1, with `pot` removed from the parts tray.
 - **Solution Space:** Requires solving the launch voltage via RC charging timing (`resistor` + `capacitor`) or a resistive voltage divider.
 - **Hint:** `"Without a dial, shape the launch voltage using an RC combo's charge rate or split the 6 V supply across resistors."`
-- **Parts Tray:** `battery`, `cannon`, `motor`, `resistor`, `capacitor`, `meter`, `rail`.
+- **Parts Tray:** `resistor`, `capacitor`, `meter`, `rail`.
 
 ---
 

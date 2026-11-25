@@ -36,7 +36,7 @@ export const TOOLBELT_UNLOCKS = [
 ];
 
 export const MAINFRAME_FEEDS = [
-  { id: 'feed-power', unit: 'Unit 0', name: 'Power bus', finalId: 'lamp-control-challenge' },
+  { id: 'feed-power', unit: 'Tutorial', name: 'Power bus', finalId: 'lamp-control-challenge' },
   { id: 'feed-reg', unit: 'Resistors', name: 'Current regulation', finalId: 'house-breaker' },
   { id: 'feed-time', unit: 'Capacitors', name: 'Timing bank', finalId: 'timer-bell' },
   { id: 'feed-signal', unit: 'LEDs', name: 'Signal display', finalId: 'cable-tester' },

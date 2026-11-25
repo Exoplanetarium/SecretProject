@@ -10,12 +10,13 @@ function pathname(userId){return `little-circuit/progress/${encodeURIComponent(u
 function validProgress(value){
  return value&&typeof value==='object'&&!Array.isArray(value)&&value.version===5&&
   Array.isArray(value.completed)&&value.completed.every(id=>typeof id==='string')&&
-  value.boards&&typeof value.boards==='object'&&!Array.isArray(value.boards);
+  value.boards&&typeof value.boards==='object'&&!Array.isArray(value.boards)&&
+  (!('sandboxSlots' in value)||value.sandboxSlots===null||(typeof value.sandboxSlots==='object'&&!Array.isArray(value.sandboxSlots)&&Array.isArray(value.sandboxSlots.slots)));
 }
 function canonicalProgress(value){
  if(!validProgress(value))return null;
- const {completed,boards}=restoreProgress(value);
- return encodeProgress(completed,boards);
+ const {completed,boards,sandboxSlots}=restoreProgress(value);
+ return encodeProgress(completed,boards,sandboxSlots);
 }
 function storageUnavailable(error){
  if(!(error instanceof BlobError))throw error;

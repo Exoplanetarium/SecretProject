@@ -1,6 +1,6 @@
 import {activities} from './activities.js';
 
-const lampFinal={id:'lamp-control-challenge',unit:'Unit 0',title:'Lamp control challenge',parts:['battery','lamp','switch'],target:'Two independent lamps',goal:'Build a panel with two lamps and two switches. Show that either lamp can go dark while the other stays on.',hint:'Start with both lamps lit. Think about which current path each switch should interrupt.',ending:'Each switch controls its own lamp branch.',diagram:'lamp-control-challenge',check:s=>s.designPassed===true};
+const lampFinal={id:'lamp-control-challenge',unit:'Tutorial',title:'Lamp control challenge',parts:['battery','lamp','switch'],target:'Two independent lamps',goal:'Build a panel with two lamps and two switches. Show that either lamp can go dark while the other stays on.',hint:'Start with both lamps lit. Think about which current path each switch should interrupt.',ending:'Each switch controls its own lamp branch.',diagram:'lamp-control-challenge',check:s=>s.designPassed===true};
 export const finals=[
  lampFinal,
  ...activities.filter(l=>l.challenge).map(l=>({...l,diagram:l.id,check:s=>s.activityPassed===true||s.designPassed===true}))

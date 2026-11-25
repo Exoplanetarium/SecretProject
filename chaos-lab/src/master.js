@@ -43,17 +43,12 @@ export const masterActivities = [
     'Score 10 baskets in a row hands-off. Tune cannon voltage for a swish and run the return belt to keep the 3-ball magazine loaded.',
     'Pair a resistor with the capacitor (an RC combo) or trim with the potentiometer so voltage lands in the sweet spot each cycle. Keep the return belt spinning the right way.',
     fix([
-      dev('battery', -6, 4, { fixed: true }),
-      dev('cannon', -1, 4, { fixed: true }),
-      dev('motor', 5, 4),
-      dev('resistor', -3, 1, { resistance: 30 }),
-      dev('capacitor', 1, 1, { capacitance: 0.1 }),
-      dev('pot', 5, 1),
-      dev('meter', -6, -2),
-      dev('rail', 0, -2)
+      dev('battery', -6, 3.5, { fixed: true }),
+      dev('cannon', -5.5, -6, { fixed: true, locked: true }),
+      dev('motor', 5.5, 1.5, { fixed: true, role: 'Belt motor' })
     ]),
     ['battery', 'cannon', 'motor', 'resistor', 'capacitor', 'pot', 'meter', 'rail'],
-    ['motor', 'resistor', 'capacitor', 'pot', 'meter', 'rail'],
+    ['resistor', 'capacitor', 'pot', 'meter', 'rail'],
     {
       target: '10 baskets in a row · hands-off',
       ending: 'Balanced launch voltage and continuous belt return turned three balls into an endless loop.'
@@ -67,16 +62,12 @@ export const masterActivities = [
     'Score 10 baskets in a row hands-off with no potentiometer.',
     'Without a dial, shape the launch voltage using an RC combo charge rate or split the 6 V supply across resistors.',
     fix([
-      dev('battery', -6, 4, { fixed: true }),
-      dev('cannon', -1, 4, { fixed: true }),
-      dev('motor', 5, 4),
-      dev('resistor', -3, 1, { resistance: 30 }),
-      dev('capacitor', 1, 1, { capacitance: 0.1 }),
-      dev('meter', -6, -2),
-      dev('rail', 0, -2)
+      dev('battery', -6, 3.5, { fixed: true }),
+      dev('cannon', -5.5, -6, { fixed: true, locked: true }),
+      dev('motor', 5.5, 1.5, { fixed: true, role: 'Belt motor' })
     ]),
     ['battery', 'cannon', 'motor', 'resistor', 'capacitor', 'meter', 'rail'],
-    ['motor', 'resistor', 'capacitor', 'meter', 'rail'],
+    ['resistor', 'capacitor', 'meter', 'rail'],
     {
       parentId: 'mc-basketball',
       target: '10 baskets in a row · no potentiometer',
@@ -249,11 +240,13 @@ export function measureMaster(lesson, parts, wires, s, a, on, dt = 0) {
         lastOutcome: '',
         lastShotV: 0,
         lastArc: null,
-        motorVoltage: 0
+        motorVoltage: 0,
+        events: []
       };
       a.passed = false;
     }
     const mc = a.mc;
+    const emit = ev => { mc.events.push(ev); if (mc.events.length > 8) mc.events.shift(); };
     const cannon = kind('cannon')[0];
     const motor = kind('motor')[0];
     const vCannon = cannon ? voltage(cannon) : 0;
@@ -270,6 +263,7 @@ export function measureMaster(lesson, parts, wires, s, a, on, dt = 0) {
         if (ball.phase === 'flight') {
           ball.t += dt / 0.95;
           if (ball.t >= 1) {
+            emit(ball.outcome === 'short' ? 'airball' : ball.outcome);
             if (ball.outcome === 'swish') {
               ball.phase = 'belt';
               ball.u = 0;
@@ -287,8 +281,9 @@ export function measureMaster(lesson, parts, wires, s, a, on, dt = 0) {
           ball.u += beltSpeed * dt;
           if (ball.u >= 1) {
             mc.ammo = Math.min(3, mc.ammo + 1);
-          } else if (ball.u < -0.08) {
+          } else if (ball.u < -0.05) {
             mc.streak = 0;
+            if (ball.u >= -0.25) remainingBalls.push(ball);
           } else {
             remainingBalls.push(ball);
           }
@@ -312,6 +307,7 @@ export function measureMaster(lesson, parts, wires, s, a, on, dt = 0) {
           mc.lastOutcome = outcome;
           mc.lastArc = { shotV, outcome };
           mc.balls.push({ phase: 'flight', t: 0, shotV, outcome });
+          emit('cannonFire');
 
           const joined = connectedNets(parts, wires);
           for (const cap of kind('capacitor')) {
@@ -332,7 +328,8 @@ export function measureMaster(lesson, parts, wires, s, a, on, dt = 0) {
       mc.balls = [];
     }
 
-    reading = 'Baskets ' + mc.streak + ' / 10 · Ammo ' + mc.ammo + ' / 3 · Cannon ' + absCannon.toFixed(2) + ' V' + (mc.lastOutcome ? ' · ' + mc.lastOutcome : '');
+    const beltLabel = !on || Math.abs(vMotor) < 0.2 ? 'Belt OFF' : vMotor > 0 ? 'Belt ← OK' : 'Belt → REV';
+    reading = 'Baskets ' + mc.streak + ' / 10 · Ammo ' + mc.ammo + ' / 3 · Cannon ' + absCannon.toFixed(2) + ' V · ' + beltLabel + (mc.lastOutcome ? ' · ' + mc.lastOutcome : '');
   } else if (id === 'mc-bulbtown') {
     const target = kind('lamp').find(p => p.role === 'Target bulb') || kind('lamp')[0];
     const iTarget = on && !s.short && target ? amp(target) : 0;
@@ -343,7 +340,7 @@ export function measureMaster(lesson, parts, wires, s, a, on, dt = 0) {
   } else if (id === 'mc-flip-proof') {
     const key = circuitKey(parts, wires, true);
     if (!a.mc || a.mc.key !== key) {
-      a.mc = { key, flips: 0, flipTimer: 0, windowGood: true, polarities: new Set() };
+      a.mc = { key, flips: 0, flipTimer: 0, windowGood: true, polarities: new Set(), events: [] };
       a.passed = false;
     }
     const mc = a.mc;
@@ -371,6 +368,8 @@ export function measureMaster(lesson, parts, wires, s, a, on, dt = 0) {
         }
         mc.windowGood = true;
         bat.reversed = !bat.reversed;
+        mc.events.push('flip');
+        if (mc.events.length > 8) mc.events.shift();
       }
     } else {
       mc.flipTimer = 0;

@@ -1,14 +1,14 @@
 import {activities} from './activities.js';
 
 export const units=[
- {name:'Unit 0',label:'Unit 0'}, {name:'Resistors',label:'Unit 1 · Resistors'},
- {name:'Capacitors',label:'Unit 2 · Capacitors',theme:'radio'},
- {name:'LEDs',label:'Unit 3 · LEDs',theme:'theater'},
- {name:'Motors',label:'Unit 4 · Motors',theme:'factory'},
- {name:'Observatory',label:'Unit 5 · Observatory',theme:'observatory'},
+ {name:'Tutorial',label:'Tutorial'}, {name:'Resistors',label:'Chapter 1 · Resistors'},
+ {name:'Capacitors',label:'Chapter 2 · Capacitors',theme:'radio'},
+ {name:'LEDs',label:'Chapter 3 · LEDs',theme:'theater'},
+ {name:'Motors',label:'Chapter 4 · Motors',theme:'factory'},
+ {name:'Observatory',label:'Chapter 5 · Observatory',theme:'observatory'},
  {name:'Library',label:'The Library'},
  {name:'Master',label:'Master Challenges',theme:'proving'},
- {name:'Workshop',label:'Workshop'}
+ {name:'Workshop',label:'Workshop',theme:'greenhouse'}
 ];
 
 const legacyLessons=[

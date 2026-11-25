@@ -6,6 +6,7 @@ import { activities, conditions, freshActivity, measureActivity } from '../src/a
 import { starterBoard } from '../src/units.js';
 import { makeUnitPart, updateDeviceVisual } from '../src/unit-scenes.js';
 import { createActivityScene } from '../src/activity-scenes.js';
+import { createFirstLightScene, FIRST_LIGHT_DURATION } from '../src/first-light.js';
 import { diagram } from '../src/visuals.js';
 import {
   FREE_BUILD_BASE_PARTS,
@@ -404,4 +405,33 @@ test('Observatory diagrams render clearly with battery terminals on battery-powe
       assert.ok(svg.includes('>−'), `${level.id} missing battery −`);
     }
   }
+});
+
+test('Observatory First Light cinema animates across all 5 acts, stays finite, avoids em dashes, and disposes cleanly', () => {
+  const fl = createFirstLightScene({ onlineCount: 11, totalCount: 11 });
+  assert.equal(FIRST_LIGHT_DURATION, 23);
+  assert.equal(fl.state.phaseIndex, 0);
+  assert.equal(fl.state.finished, false);
+
+  const phasesSeen = new Set();
+  let peakFlash = 0;
+  for (let i = 0; i < 260; i++) {
+    const s = fl.update(0.1);
+    phasesSeen.add(s.phaseIndex);
+    peakFlash = Math.max(peakFlash, s.flash);
+    assert.ok(!s.eyebrow.includes('—') && !s.title.includes('—') && !s.sub.includes('—'));
+  }
+
+  assert.deepEqual([...phasesSeen].sort(), [0, 1, 2, 3, 4]);
+  assert.ok(fl.state.shutterOpen > 0.99);
+  assert.ok(fl.state.telescopePitch > 0.9);
+  assert.ok(peakFlash > 0.2);
+  assert.equal(fl.state.finished, true);
+
+  fl.scene.traverse(obj => {
+    for (const v of [...obj.position.toArray(), ...obj.quaternion.toArray(), ...fl.camera.position.toArray()]) {
+      assert.ok(Number.isFinite(v));
+    }
+  });
+  fl.dispose();
 });

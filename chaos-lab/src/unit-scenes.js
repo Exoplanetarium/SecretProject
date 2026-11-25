@@ -390,15 +390,15 @@ function npnTransistor(part,g,paint,steel,rim){
 function ballCannon(part,g,paint,steel,rim){
  const copper=paint('#c88246',.62),iron=paint('#29252a',.35),brass=paint('#d8b062',.6),jewel=paint('#8a5c28');
  jewel.emissive.set('#ff9d3b');jewel.emissiveIntensity=0;
- box(g,iron,0,.52,-.78,1.52,.42,.92);
- for(const x of [-.56,.56])box(g,copper,x,.88,-.82,.16,.58,.48);
- const barrelGrp=group(g,0,1.02,-.84);
- barrelGrp.rotation.z=-.52;
- const tubeMesh=mesh(barrelGrp,new T.CylinderGeometry(.24,.28,1.12,24),brass,.18,.12,0);
+ box(g,iron,0,.54,-.24,1.62,.56,1.05);
+ for(const x of [-.58,.58])box(g,copper,x,1.02,-.26,.16,.62,.52);
+ const barrelGrp=group(g,0,1.18,-.26);
+ barrelGrp.rotation.z=.56;
+ const tubeMesh=mesh(barrelGrp,new T.CylinderGeometry(.30,.36,1.48,24),brass,.32,0,0);
  tubeMesh.rotation.z=-Math.PI/2;
- const muzzle=mesh(barrelGrp,new T.TorusGeometry(.25,.055,10,24),copper,.72,.12,0);
+ const muzzle=mesh(barrelGrp,new T.TorusGeometry(.31,.06,10,24),copper,1.06,0,0);
  muzzle.rotation.y=Math.PI/2;
- mesh(barrelGrp,new T.SphereGeometry(.16,12,10),jewel,-.36,.12,0);
+ mesh(barrelGrp,new T.SphereGeometry(.18,14,10),jewel,-.44,0,0);
  const plateMat=new T.MeshBasicMaterial({color:'#efe2c0'});
  const plate=makeCanvas(256,64);
  if(plate){
@@ -408,9 +408,10 @@ function ballCannon(part,g,paint,steel,rim){
   plateMat.map=tex;plateMat.needsUpdate=true;
   part.cannonCtx=ctx;part.cannonTex=tex;
  }
- g.userData.instrumentMaterials=undefined;
- box(g,iron,0,.50,-.28,1.14,.32,.08);
- const screen=mesh(g,new T.PlaneGeometry(1.02,.25),plateMat,0,.50,-.23);
+ const panel=group(g,0,.56,.30);
+ panel.rotation.x=-.22;
+ box(panel,iron,0,0,-.02,1.18,.34,.08);
+ const screen=mesh(panel,new T.PlaneGeometry(1.06,.26),plateMat,0,0,.025);
  screen.userData.ownedMaterial=true;
  part.cannonJewel=jewel;
 }
@@ -420,16 +421,21 @@ export const themeColors={
  theater:{top:'#564665',edge:'#272339',accent:'#e297e3',sky:'#463958'},
  factory:{top:'#738490',edge:'#2a3944',accent:'#e97930',sky:'#a9b9bb'},
  observatory:{top:'#3c4d63',edge:'#1f293a',accent:'#e5b869',sky:'#182133'},
- proving:{top:'#3c3633',edge:'#1c191d',accent:'#d88c4a',sky:'#161419'}
+ proving:{top:'#3c3633',edge:'#1c191d',accent:'#d88c4a',sky:'#161419'},
+ greenhouse:{top:'#e0b882',edge:'#1b5142',accent:'#f0a830',sky:'#9fdcf2'}
 };
 export function unitRoom(theme){
  const colors=themeColors[theme],room=new T.Scene();
- room.background=new T.Color(colors.sky);room.fog=new T.FogExp2(colors.sky,.013);
- room.add(new T.HemisphereLight('#fff7ea','#70798d',2.5));
- const light=new T.DirectionalLight('#fff1ca',2);light.position.set(-10,18,12);room.add(light);
+ room.background=new T.Color(colors.sky);room.fog=new T.FogExp2(colors.sky,theme==='greenhouse'?.0028:.013);
+ room.add(new T.HemisphereLight(theme==='greenhouse'?'#fffef4':'#fff7ea',theme==='greenhouse'?'#7ab882':'#70798d',theme==='greenhouse'?3.0:2.5));
+ const light=new T.DirectionalLight('#fff3cc',theme==='greenhouse'?2.5:2);light.position.set(-14,26,18);room.add(light);
  const steel=finish(colors.edge),panel=finish(colors.top),accent=finish(colors.accent),silver=finish('#bfcbca'),ink=finish('#242e3a');
- box(room,panel,0,-9,0,170,1,170);box(room,steel,0,6,-33,76,33,1);
- for(const x of [-13,13])for(const z of [-10,10])box(room,steel,x,-4.5,z,.75,9,.75);
+ const floorMat=theme==='greenhouse'?finish('#cbb796',.08):panel;
+ box(room,floorMat,0,-9,0,theme==='greenhouse'?184:170,1,theme==='greenhouse'?172:170);
+ if(theme!=='greenhouse'){
+  box(room,steel,0,6,-33,76,33,1);
+  for(const x of [-13,13])for(const z of [-10,10])box(room,steel,x,-4.5,z,.75,9,.75);
+ }
  if(theme==='factory'){
   const pane=new T.MeshBasicMaterial({color:'#c4dadb'});
   for(let i=0;i<8;i++){const x=-29+i*8;box(room,pane,x,6,-32.3,7.5,12,.3);box(room,steel,x,6,-31.9,7.5,.24,.32);}
@@ -454,16 +460,31 @@ export function unitRoom(theme){
   for(const y of [-1.1,7.5])box(room,steel,0,y,-27,60,.45,6);
   for(let i=0;i<9;i++){const x=-20+i*5;box(room,panel,x,9,-28,3.8,2.7,3);box(room,accent,x,9,-26.4,1.3,.48,.1);}
  }else if(theme==='observatory'){
-  const night=new T.MeshBasicMaterial({color:'#0c1324'}),star=new T.MeshBasicMaterial({color:'#f8e4a8'}),brass=finish('#b88d4c',.55);
+  const night=new T.MeshBasicMaterial({color:'#071022'}),star=new T.MeshBasicMaterial({color:'#ffe7a0'}),lineGold=new T.MeshBasicMaterial({color:'#a48244'}),brass=finish('#c89a50',.58);
   for(const x of [-15,0,15]){
    box(room,night,x,7,-32.2,10,14,.3);
    box(room,brass,x,14.1,-31.9,10.5,.45,.45);
    box(room,brass,x,-.1,-31.9,10.5,.45,.45);
-   for(let s=0;s<6;s++)mesh(room,new T.SphereGeometry(.14,8,6),star,x-3.5+((s*3.1)%7),3+((s*4.3)%8),-31.9);
+   const pts=[];
+   for(let s=0;s<7;s++){
+    const sx=x-3.4+((s*3.1)%6.8),sy=2.8+((s*4.3)%8.4);
+    mesh(room,new T.SphereGeometry(.15,8,6),star,sx,sy,-31.9);
+    pts.push([sx,sy]);
+   }
+   for(let s=0;s<4;s++){
+    const [x1,y1]=pts[s],[x2,y2]=pts[s+1];
+    const len=Math.hypot(x2-x1,y2-y1);
+    const seg=box(room,lineGold,(x1+x2)/2,(y1+y2)/2,-31.95,len,.05,.04);
+    seg.rotation.z=Math.atan2(y2-y1,x2-x1);
+   }
+  }
+  for(const rx of [-19,0,19]){
+   const arch=mesh(room,new T.TorusGeometry(13,.22,8,28,Math.PI),brass,rx,13.5,-24);
+   arch.rotation.y=Math.PI/2;arch.castShadow=false;
   }
   const scope=group(room,-16,1.5,-22);scope.rotation.y=.52;
   for(const a of [-.45,0,.45]){const leg=box(scope,ink,Math.sin(a)*1.4,-3.8,Math.cos(a)*1.4,.28,8.5,.28);leg.rotation.z=-Math.sin(a)*.25;leg.rotation.x=Math.cos(a)*.2;}
-  const tubeGrp=group(scope,0,0,0);tubeGrp.rotation.x=.42;
+  const tubeGrp=group(scope,0,0,0);tubeGrp.rotation.x=.55;
   barrel(tubeGrp,brass,0,0,0,.95,7.2);barrel(tubeGrp,accent,0,0,3.6,1.15,.5);barrel(tubeGrp,ink,0,0,-3.7,.45,.9);
   for(let i=0;i<4;i++){
    const x=10+i*5.5;
@@ -491,6 +512,131 @@ export function unitRoom(theme){
   for(const x of [-25,25]){
    box(room,slate,x,1,-24,3.8,18,3.8);
    box(room,copper,x,10.2,-24,4.2,.35,4.2);
+  }
+ }else if(theme==='greenhouse'){
+  const glass=new T.MeshBasicMaterial({color:'#e8fbf7',transparent:true,opacity:.18,depthWrite:false,side:T.DoubleSide});
+  const iron=finish('#1b5142',.44),terracotta=finish('#cc633f',.08),cedar=finish('#b87d4b',.12),stone=finish('#e6dbc3',.06);
+  const leafDark=finish('#246b3e',.08),leafMid=finish('#3da355',.08),leafBright=finish('#7dd45a',.08);
+  const jewelMats=['#f7b733','#f06c5b','#3fc7be','#84d252','#a480f2'].map(c=>new T.MeshBasicMaterial({color:c,transparent:true,opacity:.56,depthWrite:false,side:T.DoubleSide}));
+  const bloomMats=['#ffaa2b','#f25c54','#ea63a5','#a77bf3','#4ea8f5'].map(c=>finish(c,.12));
+  const bark=finish('#7c5234',.15);
+  const addPlant=(px,py,pz,scale=1,ci=0)=>{
+   const bush=group(room,px,py,pz);
+   mesh(bush,new T.SphereGeometry(1.5*scale,10,8),leafDark,0,.6*scale,0);
+   mesh(bush,new T.SphereGeometry(1.18*scale,10,8),leafMid,-.95*scale,.95*scale,.35*scale);
+   mesh(bush,new T.SphereGeometry(1.1*scale,10,8),leafBright,.9*scale,1.2*scale,-.3*scale);
+   mesh(bush,new T.SphereGeometry(.42*scale,8,6),bloomMats[ci%5],-.55*scale,1.8*scale,.55*scale);
+   mesh(bush,new T.SphereGeometry(.38*scale,8,6),bloomMats[(ci+1)%5],.65*scale,1.95*scale,.25*scale);
+   mesh(bush,new T.SphereGeometry(.35*scale,8,6),bloomMats[(ci+2)%5],.05*scale,2.1*scale,-.4*scale);
+  };
+  // Vivid outdoor sunny lawn extending past all 4 glass walls + tiled conservatory floor
+  box(room,finish('#6eb95d',.06),0,-9.7,0,280,.8,280);
+  for(let px=-72;px<=72;px+=18)for(let pz=-66;pz<=66;pz+=18){
+   box(room,stone,px,-8.48,pz,15,.08,15);
+  }
+  box(room,iron,0,-8.45,70.5,160,.1,1.6);box(room,iron,0,-8.45,-70.5,160,.1,1.6);
+  box(room,iron,76.5,-8.45,0,1.6,.1,142);box(room,iron,-76.5,-8.45,0,1.6,.1,142);
+  // 360-degree conservatory walls extending cleanly to eaves y = 72 so top-down cameras stay unobstructed
+  for(const sz of [-1,1]){
+   const z=sz*80;
+   box(room,terracotta,0,-5.15,z,172,6.7,1.4);
+   box(room,stone,0,-1.6,z,173,.55,2);
+   for(let i=0;i<8;i++){
+    const x=-70+i*20;
+    box(room,glass,x,15.85,z,19.3,34.3,.2);
+    box(room,jewelMats[i%5],x,37.5,z,19.3,8.2,.2);
+    box(room,glass,x,56.9,z,19.3,29.8,.2);
+    box(room,iron,x-10,35.2,z,.65,73.6,.8);
+    for(const h of [14,33.2,42,72])box(room,iron,x,h,z,20,.42,.6);
+    const arch=mesh(room,new T.TorusGeometry(9.6,.34,8,20,Math.PI),iron,x,33.2,z);
+    arch.castShadow=false;
+   }
+   box(room,iron,80,35.2,z,.65,73.6,.8);
+   // Gable end stained-glass sunburst & diagonal rafters above eaves (y = 72..104)
+   const gAngle=Math.atan2(32,86),gLen=Math.hypot(32,86);
+   for(const side of [-1,1]){
+    const r=box(room,iron,side*43,88,z,gLen,.75,.85);
+    r.rotation.z=-side*gAngle;
+   }
+   for(const [gy,gw,gi] of [[76.5,148,0],[84.5,108,2],[93.5,64,4],[100,24,1]]){
+    box(room,jewelMats[gi],0,gy,z,gw,7.6,.22);
+    box(room,iron,0,gy-3.8,z,gw+4,.48,.65);
+   }
+  }
+  for(const sx of [-1,1]){
+   const x=sx*86;
+   box(room,terracotta,x,-5.15,0,1.4,6.7,160);
+   box(room,stone,x,-1.6,0,2,.55,161);
+   for(let j=0;j<6;j++){
+    const z=-62.5+j*25;
+    box(room,glass,x,15.85,z,.2,34.3,24.2);
+    box(room,jewelMats[(j+1)%5],x,37.5,z,.2,8.2,24.2);
+    box(room,glass,x,56.9,z,.2,29.8,24.2);
+    box(room,iron,x,35.2,z-12.5,.8,73.6,.65);
+    for(const h of [14,33.2,42,72])box(room,iron,x,h,z,.6,.42,25);
+    const arch=mesh(room,new T.TorusGeometry(12.1,.36,8,20,Math.PI),iron,x,33.2,z);
+    arch.rotation.y=Math.PI/2;arch.castShadow=false;
+   }
+   box(room,iron,x,35.2,75,.8,73.6,.65);
+  }
+  // High pitched glass skylight roof (eaves y = 72 at x = +-86, ridge y = 104 at x = 0) with clear overhead airspace
+  const roofAngle=Math.atan2(32,86),roofLen=Math.hypot(32,86);
+  for(const side of [-1,1]){
+   const rg=box(room,glass,side*43,88,0,roofLen+1,.24,162);
+   rg.rotation.z=-side*roofAngle;rg.castShadow=false;
+   for(let k=0;k<5;k++){
+    const st=box(room,jewelMats[(k+2)%5],side*43,87.85,-60+k*30,roofLen-4,.22,6.5);
+    st.rotation.z=-side*roofAngle;st.castShadow=false;
+   }
+  }
+  for(let rz=-80;rz<=80;rz+=20){
+   for(const side of [-1,1]){
+    const rf=box(room,iron,side*43,87.6,rz,roofLen+1,.75,.75);
+    rf.rotation.z=-side*roofAngle;
+   }
+  }
+  box(room,accent,0,104,0,1.2,1.3,164);
+  // Colorful perimeter cedar planter beds & flowering pots strictly outside |x| >= 75 or |z| >= 69
+  for(const sz of [-1,1]){
+   box(room,cedar,0,-6.2,sz*73,144,4.6,5.4);
+   for(let i=-4;i<=4;i++){
+    const px=i*15;
+    addPlant(px,-4.0,sz*73,1.65,Math.abs(i)+sz+3);
+   }
+  }
+  for(const sx of [-1,1]){
+   box(room,cedar,sx*79.5,-6.2,0,5.4,4.6,128);
+   for(let j=-3;j<=3;j++){
+    const pz=j*18;
+    addPlant(sx*79.5,-4.0,pz,1.65,Math.abs(j)+sx+4);
+   }
+  }
+  // Tall corner terracotta urns & multi-tier botanical palms
+  for(const [cx,cz,ci] of [[-78,-72,0],[78,-72,1],[-78,72,2],[78,72,3]]){
+   mesh(room,new T.CylinderGeometry(2.6,1.8,4.6,14),terracotta,cx,-6.2,cz);
+   mesh(room,new T.CylinderGeometry(.38,.52,15,8),bark,cx,1.5,cz);
+   addPlant(cx,8.2,cz,2.4,ci);
+  }
+  // Perimeter wall-mounted hanging brass flower baskets (horizontal wall brackets leave overhead view open)
+  for(const [hx,hy,hz,ci] of [[-75,29,-40,0],[-75,29,0,2],[-75,29,40,4],[75,29,-40,1],[75,29,0,3],[75,29,40,0],[-40,31,-69,2],[0,31,-69,4],[40,31,-69,1],[-40,31,69,3],[0,31,69,0],[40,31,69,2]]){
+   if(Math.abs(hx)===75)box(room,accent,Math.sign(hx)*80.5,hy+1.8,hz,11.2,.2,.2);
+   else box(room,accent,hx,hy+1.8,Math.sign(hz)*74.5,.2,.2,11.2);
+   mesh(room,new T.CylinderGeometry(.08,.08,2.2,8),accent,hx,hy+.7,hz);
+   mesh(room,new T.CylinderGeometry(2.2,1.3,1.7,12),terracotta,hx,hy-.6,hz);
+   addPlant(hx,hy+.2,hz,1.35,ci);
+  }
+  // Blossoming garden trees ringing ALL 4 exterior glass walls
+  const canopyPalette=[leafMid,leafBright,finish('#f792b8',.08),finish('#a07bf5',.08),finish('#f5c43d',.08),leafDark];
+  const outerTrees=[
+   ...[-68,-40,-12,16,44,70].flatMap((tx,i)=>[[tx,-95,i],[tx,95,i+2]]),
+   ...[-56,-28,0,28,56].flatMap((tz,i)=>[[-101,tz,i+1],[101,tz,i+3]])
+  ];
+  for(const [ox,oz,ti] of outerTrees){
+   const tree=group(room,ox,-9,oz);
+   mesh(tree,new T.CylinderGeometry(1.1,1.6,17,8),bark,0,8.5,0);
+   mesh(tree,new T.SphereGeometry(8.5,10,8),canopyPalette[ti%canopyPalette.length],0,18,0);
+   mesh(tree,new T.SphereGeometry(6.2,10,8),canopyPalette[(ti+1)%canopyPalette.length],3.8,21,2.2);
+   mesh(tree,new T.SphereGeometry(5.8,10,8),leafMid,-3.6,16.5,-2.0);
   }
  }else{
   box(room,ink,0,2,-27,49,15,1);

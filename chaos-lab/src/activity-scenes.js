@@ -596,6 +596,9 @@ function observatoryRack(root) {
   const starMat=paint('#7a623c',.2);
   starMat.emissive.set('#ffd97a');starMat.emissiveIntensity=.15;
   mesh(scope,new T.OctahedronGeometry(.28,0),starMat,0,0,0);
+  const beamMat=new T.MeshBasicMaterial({color:'#8be5ff',transparent:true,opacity:0,blending:T.AdditiveBlending,depthWrite:false,side:T.DoubleSide});
+  const starBeam=mesh(scope,new T.CylinderGeometry(.95,.22,7.5,14,1,true),beamMat,0,3.9,0);
+  starBeam.castShadow=false;starBeam.visible=false;
   let last=performance.now();
   return (a,parts,state,on,progress)=>{
     const now=performance.now(),dt=Math.min(.15,(now-last)/1000);last=now;
@@ -605,9 +608,13 @@ function observatoryRack(root) {
     const booted=!!progress?.coreBooted;
     const activeVal=on&&Object.values(state?.displayValues||{}).some(v=>v>0);
     starMat.emissiveIntensity=booted?2.8:activeVal?1.4:.18;
+    starBeam.visible=booted;
+    if(booted)beamMat.opacity=.18+.05*Math.sin(now*.003);
     const spin=booted?1.1:activeVal?.35:0;
     outer.rotation.z+=spin*dt;
+    outer.rotation.x=booted?Math.sin(now*.0008)*.32:0;
     inner.rotation.z-=spin*1.4*dt;
+    inner.rotation.y=booted?Math.cos(now*.0011)*.45:0;
   };
 }
 
@@ -629,54 +636,84 @@ function drawCourtScore(ctx,text,lit) {
 }
 
 function basketballCourt(root) {
-  const court=group(root,0,0,-6.2);
+  const court=group(root,0,0,-6);
   const slate=paint('#292428',.32),copper=paint('#c88246',.6),brass=paint('#d8af5c',.58),wood=paint('#d4aa74',.08);
+  const steel=paint('#374d55',.54),rail=paint('#b3bfbb',.68);
   const rubber=paint('#20252a',.1),cleatMat=paint('#c78d4a',.4),orange=paint('#df6924',.12),seam=paint('#2a1d17',.1);
   const netMat=paint('#efe5d0',.05),arcMat=new T.MeshBasicMaterial({color:'#ffca6b',transparent:true,opacity:.48});
+  const driveColors={steel,rail,accent:copper,brass,rubber,cleat:cleatMat};
 
-  box(court,slate,0,.22,0,14.8,.22,2.8);
-  box(court,copper,0,.35,1.32,14.8,.08,.12);
-  box(court,copper,0,.35,-1.32,14.8,.08,.12);
+  box(court,slate,0,.15,0,15.0,.06,2.8);
+  box(court,copper,0,.21,1.34,15.0,.06,.10);
+  box(court,copper,0,.21,-1.34,15.0,.06,.10);
 
-  // Return conveyor track sloping from under the hoop back to the cannon hopper
-  const trackLen=10.6;
-  const track=group(court,0,.58,0);
-  track.rotation.z=-.022;
+  // Return conveyor track sloping from under the hoop back toward the fixed ball cannon
+  const trackLen=9.2, beltZ=-.26;
+  const track=group(court,.35,.56,beltZ);
+  track.rotation.z=-.015;
   box(track,rubber,0,0,0,trackLen,.14,.84);
   for(const z of [-.48,.48])box(track,copper,0,.10,z,trackLen,.14,.09);
+  for(const cx of [-2.4,0,2.4]){
+    const c1=box(track,brass,cx-.06,.11,.53,.20,.038,.03);c1.rotation.z=.48;
+    const c2=box(track,brass,cx-.06,.05,.53,.20,.038,.03);c2.rotation.z=-.48;
+  }
+  const rollers=[];
   for(const x of [-trackLen/2,trackLen/2]){
     const rl=mesh(track,new T.CylinderGeometry(.16,.16,.92,16),brass,x,0,0);
     rl.rotation.x=Math.PI/2;
+    for(const z of [-.52,.52]){
+      const hub=group(track,x,0,z);
+      mesh(hub,new T.CylinderGeometry(.13,.13,.08,16),rail).rotation.x=Math.PI/2;
+      box(hub,steel,0,0,Math.sign(z)*.045,.20,.04,.025);
+      rollers.push(hub);
+    }
   }
   const cleatCount=20;
   const cleats=new T.InstancedMesh(new T.BoxGeometry(.09,.06,.78),cleatMat,cleatCount);
   track.add(cleats);
   const dummy=new T.Object3D();
 
-  // Left side cannon turret + 3-ball magazine rack
-  const launcher=group(court,-5.5,.34,0);
-  box(launcher,slate,0,.35,0,1.6,.70,1.4);
-  const barrel=mesh(launcher,new T.CylinderGeometry(.32,.38,1.55,22),brass,.36,1.02,0);
-  barrel.rotation.z=-.98;
-  const muzzle=mesh(launcher,new T.TorusGeometry(.33,.065,10,24),copper,.95,1.46,0);
-  muzzle.rotation.z=-.98;muzzle.rotation.y=Math.PI/2;
-  const rack=group(launcher,-.42,.74,0);
-  for(const z of [-.34,.34])box(rack,copper,0,.52,z,.68,.95,.07);
+  // Mechanical belt-drive head on the conveyor's right roller (+z front face)
+  const driveX=4.95, driveY=.56;
+  box(court,rail,driveX,.21,.26,.48,.08,.46);
+  box(court,steel,driveX,.38,.26,.22,.34,.22);
+  mesh(court,new T.CylinderGeometry(.12,.12,.22,16),rail,driveX,driveY,.26).rotation.x=Math.PI/2;
+  mesh(court,new T.CylinderGeometry(.075,.075,.72,16),steel,driveX,driveY,.22).rotation.x=Math.PI/2;
+  const drivePulley=makePulley(court,brass,steel,driveX,driveY,.36,.25,.12);
+  mesh(court,new T.CylinderGeometry(.13,.13,.09,16),copper,driveX,driveY,.49).rotation.x=Math.PI/2;
+  const beltAnchor=new T.Object3D();
+  beltAnchor.position.set(driveX,driveY,.58);
+  court.add(beltAnchor);
+
+  const motorPtoLeft=makeMotorPto(root,-1,driveColors);
+  const motorPtoRight=makeMotorPto(root,1,driveColors);
+  const directShaft=makeDriveShaft(root,driveColors);
+  court.updateMatrixWorld(true);
+  const beltTarget=new T.Vector3();
+  beltAnchor.getWorldPosition(beltTarget);
+  const ptoWorld=new T.Vector3();
+
+  // Left-side 3-ball magazine hopper feeding directly into the court-mounted cannon
+  const hopper=group(court,-7.05,.18,beltZ);
+  box(hopper,slate,0,.16,0,.95,.32,.92);
+  for(const z of [-.34,.34])box(hopper,copper,0,.62,z,.70,1.02,.07);
+  const chute=box(hopper,brass,.52,.58,0,.95,.08,.62);
+  chute.rotation.z=.46;
   const ammoMeshes=[0,1,2].map(i=>{
     const b=makeBasketballMesh(orange,seam);
-    b.position.set(-.42,.98+i*.46,0);
-    launcher.add(b);
+    b.position.set(0,.50+i*.52,0);
+    hopper.add(b);
     return b;
   });
 
   // Right side fixed hoop, backboard, net, and digital scoreboard
-  const hoopRig=group(court,5.5,.34,0);
-  box(hoopRig,slate,.42,2.2,0,.34,4.4,.42);
-  box(hoopRig,.08>0?wood:wood,.15,3.85,0,.18,1.95,2.4);
-  box(hoopRig,copper,.04,3.95,0,.04,.82,1.06);
-  const rim=mesh(hoopRig,new T.TorusGeometry(.46,.055,10,28),copper,-.58,3.45,0);
+  const hoopRig=group(court,5.5,.18,beltZ);
+  box(hoopRig,slate,.42,2.28,0,.34,4.56,.42);
+  box(hoopRig,wood,.15,4.01,0,.18,1.95,2.4);
+  box(hoopRig,copper,.04,4.11,0,.04,.82,1.06);
+  const rim=mesh(hoopRig,new T.TorusGeometry(.46,.055,10,28),copper,-.58,3.61,0);
   rim.rotation.x=Math.PI/2;
-  const net=mesh(hoopRig,new T.CylinderGeometry(.42,.24,.62,14,1,true),netMat,-.58,3.12,0);
+  const net=mesh(hoopRig,new T.CylinderGeometry(.42,.24,.62,14,1,true),netMat,-.58,3.28,0);
   netMat.side=T.DoubleSide;
 
   let scoreCtx=null,scoreTex=null,shownScore='';
@@ -688,8 +725,8 @@ function basketballCourt(root) {
     scoreTex=new T.CanvasTexture(canvas);scoreTex.colorSpace=T.SRGBColorSpace;
     boardMat.map=scoreTex;boardMat.needsUpdate=true;
   }
-  box(hoopRig,slate,.18,5.45,0,.22,1.15,2.2);
-  const screen=mesh(hoopRig,new T.PlaneGeometry(2.0,.96),boardMat,.05,5.45,0);
+  box(hoopRig,slate,.18,5.61,0,.22,1.15,2.2);
+  const screen=mesh(hoopRig,new T.PlaneGeometry(2.0,.96),boardMat,.05,5.61,0);
   screen.rotation.y=-Math.PI/2;
 
   const flightBalls=[0,1,2,3].map(()=>{
@@ -697,42 +734,47 @@ function basketballCourt(root) {
     b.visible=false;court.add(b);return b;
   });
   const arcDots=Array.from({length:14},()=>{
-    const d=mesh(court,new T.SphereGeometry(.055,8,6),arcMat,0,0,0);
+    const d=mesh(court,new T.SphereGeometry(.055,8,6),arcMat,0,0,beltZ);
     d.visible=false;return d;
   });
 
   function flightPos(t,shotV,outcome,out){
-    const sx=-4.55,sy=1.82;
+    const sx=-4.60,sy=1.88;
     if(outcome==='swish'){
       const ex=4.92,ey=3.79;
       if(t<=.82){
         const u=t/.82;
         const x=sx+(ex-sx)*u;
         const y=sy+(ey-sy)*u+Math.sin(u*Math.PI)*3.25;
-        return out.set(x,y,0);
+        return out.set(x,y,beltZ);
       }
       const d=(t-.82)/.18;
-      return out.set(ex,ey-(ey-.88)*d*d,0);
+      return out.set(ex,ey-(ey-.88)*d*d,beltZ);
     }
     if(outcome==='short'){
       const reach=clamp(shotV/3.6,.22,.92)*7.4;
       const x=sx+reach*t;
       const arch=Math.sin(t*Math.PI)*(1.2+reach*.28);
       const y=sy*(1-t)+.65*t+arch;
-      return out.set(x,Math.max(.55,y),0);
+      return out.set(x,Math.max(.55,y),beltZ);
     }
     // brick off backboard
     if(t<=.58){
       const u=t/.58;
       const x=sx+(5.28-sx)*u;
       const y=sy+(4.9-sy)*u+Math.sin(u*Math.PI)*2.9;
-      return out.set(x,y,0);
+      return out.set(x,y,beltZ);
     }
     const u=(t-.58)/.42;
-    return out.set(5.28-u*2.4,4.9+Math.sin(u*Math.PI)*.9-u*u*3.6,u*2.2);
+    return out.set(5.28-u*2.4,4.9+Math.sin(u*Math.PI)*.9-u*u*3.6,beltZ+u*2.2);
   }
 
-  return (a)=>{
+  let beltTravel=0, lastUpdate=performance.now();
+  return (a,parts=[],state=null,on=false)=>{
+    const now=performance.now();
+    const dt=Math.min((now-lastUpdate)/1000,.15);
+    lastUpdate=now;
+
     const mc=a.mc||{};
     const ammo=mc.ammo??3;
     for(let i=0;i<3;i++)ammoMeshes[i].visible=i<ammo;
@@ -743,15 +785,46 @@ function basketballCourt(root) {
       scoreTex.needsUpdate=true;
     }
 
-    const offset=((mc.beltOffset||0)%1+1)%1;
+    const motor=parts?.find(p=>p.kind==='motor');
+    const vMotor=on&&!state?.short&&motor?(state?.voltages?.[motor.id+':0']||0)-(state?.voltages?.[motor.id+':1']||0):0;
+    const beltSpeed=(vMotor/6)*.65;
+    if(on&&!state?.short)beltTravel+=beltSpeed*dt;
+
+    const offset=((beltTravel%1)+1)%1;
     const half=trackLen*.47;
     for(let i=0;i<cleatCount;i++){
-      const p=((i/cleatCount+offset)%1);
+      const p=((i/cleatCount+offset)%1+1)%1;
       dummy.position.set(half-p*half*2,.11,0);
       dummy.updateMatrix();
       cleats.setMatrixAt(i,dummy.matrix);
     }
     cleats.instanceMatrix.needsUpdate=true;
+
+    const rollerAngle=beltTravel*(trackLen/.16);
+    for(const hub of rollers)hub.rotation.z=rollerAngle;
+    drivePulley.rotation.z=rollerAngle;
+
+    if(!motor){
+      motorPtoLeft.group.visible=false;
+      motorPtoRight.group.visible=false;
+      directShaft.update(beltTarget,beltTarget,0,false);
+    }else{
+      const useRight=motor.x<beltTarget.x-1.2;
+      const activePto=useRight?motorPtoRight:motorPtoLeft;
+      motorPtoLeft.group.visible=!useRight;
+      motorPtoRight.group.visible=useRight;
+      activePto.group.position.set(motor.x,.14,motor.z);
+      activePto.group.rotation.y=-(motor.rotation||0)*Math.PI/2;
+      activePto.group.updateMatrixWorld(true);
+      activePto.anchor.getWorldPosition(ptoWorld);
+      const hubAngle=motor.rotor?.rotation.z??0;
+      const shaftAngle=rollerAngle;
+      activePto.hubPulley.rotation.z=hubAngle;
+      activePto.jackPulley.rotation.z=shaftAngle;
+      activePto.jackShaft.rotation.z=shaftAngle;
+      activePto.belt.update(shaftAngle*activePto.jackRadius);
+      directShaft.update(ptoWorld,beltTarget,shaftAngle,true);
+    }
 
     const active=mc.balls||[];
     for(let i=0;i<flightBalls.length;i++){
@@ -760,11 +833,16 @@ function basketballCourt(root) {
       b.visible=true;
       if(info.phase==='flight'){
         flightPos(clamp(info.t,0,1),info.shotV,info.outcome,b.position);
+        b.rotation.z-=.12;
       }else{
-        const u=clamp(info.u,0,1);
-        b.position.set(4.92-u*9.5,.92-(1-u)*.08,0);
+        const u=info.u;
+        if(u>=0){
+          b.position.set(4.92-u*9.3,.92-(1-u)*.06,beltZ);
+        }else{
+          b.position.set(4.92-u*5.0,.92-u*u*18,beltZ);
+        }
+        b.rotation.z+=beltSpeed*dt*14;
       }
-      b.rotation.z-=0.12;
     }
 
     const arc=mc.lastArc;
