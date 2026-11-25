@@ -611,12 +611,179 @@ function observatoryRack(root) {
   };
 }
 
+function makeBasketballMesh(orange, seamMat) {
+  const g=new T.Group();
+  mesh(g,new T.SphereGeometry(.26,18,14),orange,0,0,0);
+  const s1=mesh(g,new T.TorusGeometry(.262,.015,6,20),seamMat,0,0,0);
+  const s2=mesh(g,new T.TorusGeometry(.262,.015,6,20),seamMat,0,0,0);
+  s2.rotation.y=Math.PI/2;
+  return g;
+}
+
+function drawCourtScore(ctx,text,lit) {
+  ctx.fillStyle='#19161a';ctx.fillRect(0,0,256,128);
+  ctx.strokeStyle='#c98948';ctx.lineWidth=4;ctx.strokeRect(4,4,248,120);
+  ctx.fillStyle=lit?'#8ff0a4':'#ffd57a';
+  ctx.font='bold 72px monospace';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(text,128,66);
+}
+
+function basketballCourt(root) {
+  const court=group(root,0,0,-6.2);
+  const slate=paint('#292428',.32),copper=paint('#c88246',.6),brass=paint('#d8af5c',.58),wood=paint('#d4aa74',.08);
+  const rubber=paint('#20252a',.1),cleatMat=paint('#c78d4a',.4),orange=paint('#df6924',.12),seam=paint('#2a1d17',.1);
+  const netMat=paint('#efe5d0',.05),arcMat=new T.MeshBasicMaterial({color:'#ffca6b',transparent:true,opacity:.48});
+
+  box(court,slate,0,.22,0,14.8,.22,2.8);
+  box(court,copper,0,.35,1.32,14.8,.08,.12);
+  box(court,copper,0,.35,-1.32,14.8,.08,.12);
+
+  // Return conveyor track sloping from under the hoop back to the cannon hopper
+  const trackLen=10.6;
+  const track=group(court,0,.58,0);
+  track.rotation.z=-.022;
+  box(track,rubber,0,0,0,trackLen,.14,.84);
+  for(const z of [-.48,.48])box(track,copper,0,.10,z,trackLen,.14,.09);
+  for(const x of [-trackLen/2,trackLen/2]){
+    const rl=mesh(track,new T.CylinderGeometry(.16,.16,.92,16),brass,x,0,0);
+    rl.rotation.x=Math.PI/2;
+  }
+  const cleatCount=20;
+  const cleats=new T.InstancedMesh(new T.BoxGeometry(.09,.06,.78),cleatMat,cleatCount);
+  track.add(cleats);
+  const dummy=new T.Object3D();
+
+  // Left side cannon turret + 3-ball magazine rack
+  const launcher=group(court,-5.5,.34,0);
+  box(launcher,slate,0,.35,0,1.6,.70,1.4);
+  const barrel=mesh(launcher,new T.CylinderGeometry(.32,.38,1.55,22),brass,.36,1.02,0);
+  barrel.rotation.z=-.98;
+  const muzzle=mesh(launcher,new T.TorusGeometry(.33,.065,10,24),copper,.95,1.46,0);
+  muzzle.rotation.z=-.98;muzzle.rotation.y=Math.PI/2;
+  const rack=group(launcher,-.42,.74,0);
+  for(const z of [-.34,.34])box(rack,copper,0,.52,z,.68,.95,.07);
+  const ammoMeshes=[0,1,2].map(i=>{
+    const b=makeBasketballMesh(orange,seam);
+    b.position.set(-.42,.98+i*.46,0);
+    launcher.add(b);
+    return b;
+  });
+
+  // Right side fixed hoop, backboard, net, and digital scoreboard
+  const hoopRig=group(court,5.5,.34,0);
+  box(hoopRig,slate,.42,2.2,0,.34,4.4,.42);
+  box(hoopRig,.08>0?wood:wood,.15,3.85,0,.18,1.95,2.4);
+  box(hoopRig,copper,.04,3.95,0,.04,.82,1.06);
+  const rim=mesh(hoopRig,new T.TorusGeometry(.46,.055,10,28),copper,-.58,3.45,0);
+  rim.rotation.x=Math.PI/2;
+  const net=mesh(hoopRig,new T.CylinderGeometry(.42,.24,.62,14,1,true),netMat,-.58,3.12,0);
+  netMat.side=T.DoubleSide;
+
+  let scoreCtx=null,scoreTex=null,shownScore='';
+  const boardMat=new T.MeshBasicMaterial({color:'#ffd57a'});
+  if(typeof document!=='undefined'){
+    const canvas=document.createElement('canvas');canvas.width=256;canvas.height=128;
+    scoreCtx=canvas.getContext('2d');
+    drawCourtScore(scoreCtx,'0/10',false);
+    scoreTex=new T.CanvasTexture(canvas);scoreTex.colorSpace=T.SRGBColorSpace;
+    boardMat.map=scoreTex;boardMat.needsUpdate=true;
+  }
+  box(hoopRig,slate,.18,5.45,0,.22,1.15,2.2);
+  const screen=mesh(hoopRig,new T.PlaneGeometry(2.0,.96),boardMat,.05,5.45,0);
+  screen.rotation.y=-Math.PI/2;
+
+  const flightBalls=[0,1,2,3].map(()=>{
+    const b=makeBasketballMesh(orange,seam);
+    b.visible=false;court.add(b);return b;
+  });
+  const arcDots=Array.from({length:14},()=>{
+    const d=mesh(court,new T.SphereGeometry(.055,8,6),arcMat,0,0,0);
+    d.visible=false;return d;
+  });
+
+  function flightPos(t,shotV,outcome,out){
+    const sx=-4.55,sy=1.82;
+    if(outcome==='swish'){
+      const ex=4.92,ey=3.79;
+      if(t<=.82){
+        const u=t/.82;
+        const x=sx+(ex-sx)*u;
+        const y=sy+(ey-sy)*u+Math.sin(u*Math.PI)*3.25;
+        return out.set(x,y,0);
+      }
+      const d=(t-.82)/.18;
+      return out.set(ex,ey-(ey-.88)*d*d,0);
+    }
+    if(outcome==='short'){
+      const reach=clamp(shotV/3.6,.22,.92)*7.4;
+      const x=sx+reach*t;
+      const arch=Math.sin(t*Math.PI)*(1.2+reach*.28);
+      const y=sy*(1-t)+.65*t+arch;
+      return out.set(x,Math.max(.55,y),0);
+    }
+    // brick off backboard
+    if(t<=.58){
+      const u=t/.58;
+      const x=sx+(5.28-sx)*u;
+      const y=sy+(4.9-sy)*u+Math.sin(u*Math.PI)*2.9;
+      return out.set(x,y,0);
+    }
+    const u=(t-.58)/.42;
+    return out.set(5.28-u*2.4,4.9+Math.sin(u*Math.PI)*.9-u*u*3.6,u*2.2);
+  }
+
+  return (a)=>{
+    const mc=a.mc||{};
+    const ammo=mc.ammo??3;
+    for(let i=0;i<3;i++)ammoMeshes[i].visible=i<ammo;
+    const scoreTxt=(mc.streak||0)+'/10';
+    if(scoreCtx&&shownScore!==scoreTxt){
+      shownScore=scoreTxt;
+      drawCourtScore(scoreCtx,scoreTxt,(mc.streak||0)>=10);
+      scoreTex.needsUpdate=true;
+    }
+
+    const offset=((mc.beltOffset||0)%1+1)%1;
+    const half=trackLen*.47;
+    for(let i=0;i<cleatCount;i++){
+      const p=((i/cleatCount+offset)%1);
+      dummy.position.set(half-p*half*2,.11,0);
+      dummy.updateMatrix();
+      cleats.setMatrixAt(i,dummy.matrix);
+    }
+    cleats.instanceMatrix.needsUpdate=true;
+
+    const active=mc.balls||[];
+    for(let i=0;i<flightBalls.length;i++){
+      const b=flightBalls[i],info=active[i];
+      if(!info){b.visible=false;continue;}
+      b.visible=true;
+      if(info.phase==='flight'){
+        flightPos(clamp(info.t,0,1),info.shotV,info.outcome,b.position);
+      }else{
+        const u=clamp(info.u,0,1);
+        b.position.set(4.92-u*9.5,.92-(1-u)*.08,0);
+      }
+      b.rotation.z-=0.12;
+    }
+
+    const arc=mc.lastArc;
+    for(let i=0;i<arcDots.length;i++){
+      const d=arcDots[i];
+      if(!arc){d.visible=false;continue;}
+      d.visible=true;
+      flightPos(.06+(i/(arcDots.length-1))*.88,arc.shotV,arc.outcome,d.position);
+    }
+  };
+}
+
 export function createActivityScene(lesson, scene) {
   const root=new T.Group();
   let update;
   if(lesson.machine)update=machineBench(root,lesson);
   else if(lesson.id==='light-meter')update=shadeBench(root);
   else if(lesson.id==='rgb-mix'||lesson.id==='rgb-fade')update=stageCurtain(root);
+  else if(lesson.id==='mc-basketball'||lesson.id==='mc-basketball-raw')update=basketballCourt(root);
   else if(lesson.unit==='Observatory')update=observatoryRack(root);
   else return null;
   scene.add(root);

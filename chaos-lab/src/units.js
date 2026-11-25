@@ -6,6 +6,8 @@ export const units=[
  {name:'LEDs',label:'Unit 3 · LEDs',theme:'theater'},
  {name:'Motors',label:'Unit 4 · Motors',theme:'factory'},
  {name:'Observatory',label:'Unit 5 · Observatory',theme:'observatory'},
+ {name:'Library',label:'The Library'},
+ {name:'Master',label:'Master Challenges',theme:'proving'},
  {name:'Workshop',label:'Workshop'}
 ];
 

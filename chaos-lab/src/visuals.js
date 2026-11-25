@@ -1,4 +1,6 @@
 import {observatorySketches} from './observatory.js';
+import {librarySketches} from './library.js';
+import {masterSketches} from './master.js';
 const paths={
  play:'<path d="m9 5 11 7-11 7Z" fill="currentColor" stroke="none"/>',
  levels:'<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
@@ -42,6 +44,15 @@ const paths={
  latch:'<rect x="5" y="4" width="14" height="16" rx="2"/><path d="M2 9h3m-3 6h3m14-6h3M5 13l3 2-3 2"/>',
  clock:'<circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2M7 18h2v-2h2v2h2v-2h2v2h2"/>',
  display:'<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 7h6v5H9Zm0 5v5h6v-5"/>',
+ diode:'<path d="M2 12h6M16 12h6M8 6v12l8-6ZM16 6v12"/>',
+ spdt:'<circle cx="4" cy="12" r="2"/><circle cx="19" cy="6" r="2"/><circle cx="19" cy="18" r="2"/><path d="M2 12h0m4-1 11-5"/>',
+ pot:'<circle cx="12" cy="10" r="6"/><path d="M12 10 16 6M4 19h4m4 0v-3m4 3h4"/>',
+ fuse:'<rect x="6" y="7" width="12" height="10" rx="4"/><path d="M2 12h4m12 0h4M8 12c1.5-3 2.5 3 4 0s2.5 3 4 0"/>',
+ meter:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 14a6 6 0 0 1 10 0m-5 0 3-5"/>',
+ transistor:'<circle cx="13" cy="12" r="7.5"/><path d="M2 12h7m0-5v10m0-7 7-5m-7 9 7 5m-3-1 3 1-1-3"/>',
+ cannon:'<rect x="3" y="13" width="9" height="6" rx="2"/><path d="M9 14 19 6l2 3-9 8M2 19h14"/><circle cx="20" cy="4" r="2"/>',
+ master:'<path d="M8 4h8v5a4 4 0 0 1-8 0ZM8 6H5a2 2 0 0 0 0 4h3M16 6h3a2 2 0 0 1 0 4h-3M12 13v5M8 20h8"/>',
+ library:'<path d="M4 5h6a2 2 0 0 1 2 2v13a2 2 0 0 0-2-2H4Zm16 0h-6a2 2 0 0 0-2 2v13a2 2 0 0 1 2-2h6Z"/>',
  observatory:'<path d="M4 18h16M6 18a6 6 0 0 1 12 0"/><circle cx="12" cy="7" r="2.2"/><path d="M12 2v2m0 6v2M7 7h2m6 0h2m-8.5-3.5 1.4 1.4m4.2 4.2 1.4 1.4m0-7-1.4 1.4m-4.2 4.2-1.4 1.4"/>',
  sandbox:'<path d="M3 8h18v13H3ZM7 8V4h4v4m3 0V2h4v6M7 14h10"/>'
 };
@@ -113,7 +124,9 @@ const activitySketches={
   `<path d="M84 91V69L37 23m25-10 38 38 38-38m25 10-47 46v22"/><path d="M100 70 67 37l-5 5 34 32Z" fill="#b68e50" fill-opacity=".28"/><circle cx="100" cy="72" r="5"/><path d="m106 67 30-30M68 34q32-18 64 0" stroke-dasharray="4 4"/>`],
  'dispatch':['A loaded conveyor delivers a crate into the selected bin',
   `${placed(15,57,conveyor(108),-16)}${placed(52,46,crate,-16)}<path d="m122 33 28 18m-6-1 6 1-2-6m-45 17 14 9m-5-1 5 1-2-5" /><path d="m99 74 4 20h26l4-20m7-17 5 24h27l5-24"/><path d="m151 68 4 4 9-10"/>`],
- ...observatorySketches
+ ...observatorySketches,
+ ...librarySketches,
+ ...masterSketches
 };
 
 function unitDiagram(type){

@@ -13,7 +13,10 @@ import { icon, diagram } from './visuals.js';
 import { freshActivity, conditions, measureActivity, deviceNames, pins } from './activities.js';
 import { activityControls } from './activity-controls.js';
 import { createActivityScene } from './activity-scenes.js';
-import { unlockedToolbelt, mainframeProgress, mainframeBlueprintSvg, TOOLBELT_UNLOCKS } from './observatory.js';
+import { unlockedToolbelt, mainframeProgress, mainframeBlueprintSvg, TOOLBELT_UNLOCKS, FREE_BUILD_PARTS } from './observatory.js';
+import { LIBRARY_SHELVES, LIBRARY_UNLOCKS } from './library.js';
+import { masterProgress } from './master.js';
+import { getComponentGuide } from './component-guide.js';
 import { createShortEffects, playShortSound } from './short-effects.js';
 export function initWorkshop({ userId = null, accountProgress = null, cloudReady = false, cloudError = false, onReady = null } = {}) {
   const events = new AbortController();
@@ -71,12 +74,21 @@ export function initWorkshop({ userId = null, accountProgress = null, cloudReady
   const unitOf = l => units.find(u => u.name === l.unit);
   const unitLevels = l => LEVELS.filter(other => other.unit === l.unit);
   const lessonNumber = l => unitLevels(l).indexOf(l) + 1;
-  function reversible() { return game && ['LEDs', 'Motors', 'Workshop'].includes(LEVELS[level].unit); }
+  function reversible() { return game && ['LEDs', 'Motors', 'Library', 'Workshop'].includes(LEVELS[level].unit); }
   function inReadingRoom() { return game && LEVELS[level].unit === 'Resistors'; }
   const houseLights = { Reading: 'Reading lamp', Landing: 'Landing light', Stairs: 'Stair light' };
   function houseChallenge() { return game && LEVELS[level].id === 'house-breaker'; }
   function partName(kind) { if (kind === 'lamp' && houseChallenge()) return 'House light'; return inReadingRoom() && kind === 'lamp' ? 'Table lamp' : names[kind]; }
-  function partSpec(kind, part = null) { if (kind === 'battery') return (part?.voltage || 6) + ' V'; if (kind === 'lamp') return '20 Ω'; return ''; }
+  function partSpec(kind, part = null) {
+    if (kind === 'battery') return (part?.voltage || 6) + ' V';
+    if (kind === 'lamp') return '20 Ω';
+    if (kind === 'pot') return '100 Ω';
+    if (kind === 'fuse') return (part?.fuseRating || 0.35).toFixed(2) + ' A';
+    if (kind === 'diode') return '0.7 V';
+    if (kind === 'meter') return '±6 V';
+    if (kind === 'cannon') return '1 shot / 2.4 s';
+    return '';
+  }
   function setRoom() {
     if (inReadingRoom() && !readingRoom) readingRoom = makeReadingRoom(walnut);
     const theme = game && unitOf(LEVELS[level]).theme;
@@ -151,22 +163,52 @@ export function initWorkshop({ userId = null, accountProgress = null, cloudReady
     if (p.kind === 'battery') { const cell = cylinder(.39, 1.27, dark, g, 0, .69, 0); cell.rotation.z = Math.PI / 2; const cap = cylinder(.4, .34, red, g, -.47, .69, 0); cap.rotation.z = Math.PI / 2; const tip = cylinder(.17, .09, brass, g, -.7, .69, 0); tip.rotation.z = Math.PI / 2; p.batteryBody = [cell, cap, tip]; label('6 V', g, 0, 1.095, 0, .58, '#f5e2c0'); }
     if (p.kind === 'lamp' && houseChallenge() && Object.hasOwn(houseLights, p.role)) Object.assign(p, makeHouseLamp(g, p.role, brass, walnut));
     else if (p.kind === 'lamp' && inReadingRoom()) Object.assign(p, makeReadingLamp(g, brass, walnut));
-    else if (p.kind === 'lamp') { cylinder(.43, .13, brass, g, 0, .35, 0); cylinder(.27, .3, dark, g, 0, .52, 0); const mat = new THREE.MeshStandardMaterial({ color: '#e8c780', emissive: '#ffb43e', emissiveIntensity: 0, roughness: .25, transparent: true, opacity: .88 }); const bulb = new THREE.Mesh(new THREE.SphereGeometry(.49, 32, 24), mat); bulb.position.set(0, 1, 0); bulb.scale.y = 1.14; bulb.castShadow = true; bulb.userData.ownedMaterial = true; g.add(bulb); p.bulb = bulb; const halo = new THREE.Mesh(new THREE.SphereGeometry(.74, 24, 16), new THREE.MeshBasicMaterial({ color: '#ffcf6b', transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending })); halo.position.set(0, 1, 0); halo.userData.ownedMaterial = true; g.add(halo); p.halo = halo; const light = new THREE.PointLight('#ffbf5f', 0, 8, 2); light.position.set(0, 1.3, 0); g.add(light); p.light = light; }
+    else if (p.kind === 'lamp') { cylinder(.43, .13, brass, g, 0, .35, 0); cylinder(.27, .3, dark, g, 0, .52, 0); if (p.role === 'Target bulb') { const collar = new THREE.Mesh(new THREE.TorusGeometry(.52, .05, 10, 28), brass); collar.rotation.x = Math.PI / 2; collar.position.set(0, .3, 0); g.add(collar); } const mat = new THREE.MeshStandardMaterial({ color: '#e8c780', emissive: '#ffb43e', emissiveIntensity: 0, roughness: .25, transparent: true, opacity: .88 }); const bulb = new THREE.Mesh(new THREE.SphereGeometry(.49, 32, 24), mat); bulb.position.set(0, 1, 0); bulb.scale.y = 1.14; bulb.castShadow = true; bulb.userData.ownedMaterial = true; g.add(bulb); p.bulb = bulb; const halo = new THREE.Mesh(new THREE.SphereGeometry(.74, 24, 16), new THREE.MeshBasicMaterial({ color: '#ffcf6b', transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending })); halo.position.set(0, 1, 0); halo.userData.ownedMaterial = true; g.add(halo); p.halo = halo; const light = new THREE.PointLight('#ffbf5f', 0, 8, 2); light.position.set(0, 1.3, 0); g.add(light); p.light = light; }
     if (p.kind === 'switch') { box(.75, .16, .65, dark, g, 0, .38, 0); const lever = box(.12, .12, .85, brass, g, 0, .58, 0, .03); lever.rotation.x = p.closed ? 0 : -.55; lever.userData.switch = p; p.lever = lever; }
     if (p.kind === 'resistor') { const r = cylinder(.19, .9, new THREE.MeshStandardMaterial({ color: '#cba477', roughness: .8 }), g, 0, .53, 0); r.rotation.z = Math.PI / 2; for (const x of [-.28, -.14, .15]) { const band = cylinder(.198, .065, x < 0 ? dark : red, g, x, .53, 0); band.rotation.z = Math.PI / 2; } label('Ω', g, 0, .28, .52, .7); }
     const marks = pins[p.kind] ?? (p.kind === 'led' ? ['A', 'K'] : ['●', '●']);
     const namedPins = p.kind === 'battery' || p.kind === 'led' || !!pins[p.kind];
     if (namedPins) box(2.17, .32, .095, dark, g, 0, .23, .75, .03);
+    p.pinSlots = [];
     for (let i = 0; i < marks.length; i++) {
-      const x = marks.length === 2 ? (i === 0 ? -.91 : .91) : ((i / (marks.length - 1)) - .5) * (marks.length > 4 ? 1.96 : 1.74); const rTerm = marks.length > 4 ? .115 : .14, rHit = marks.length > 4 ? .19 : .24, rRing = marks.length > 4 ? .175 : .21; const terminal = cylinder(rTerm, .2, brass, g, x, .4, .55); terminal.userData.terminal = p.id + ':' + i; const hit = new THREE.Mesh(new THREE.SphereGeometry(rHit, 12, 8), new THREE.MeshBasicMaterial({ visible: false })); hit.position.set(x, .49, .55); hit.userData.terminal = p.id + ':' + i; hit.userData.ownedMaterial = true; g.add(hit); terminals.set(p.id + ':' + i, hit); const ring = new THREE.Mesh(new THREE.TorusGeometry(rRing, .027, 8, 24), new THREE.MeshBasicMaterial({ color: '#ffda7e', transparent: true, opacity: 0 })); ring.rotation.x = -Math.PI / 2; ring.position.set(x, .52, .55); ring.userData.ownedMaterial = true; g.add(ring); p.rings.push(ring); if (p.kind === 'battery') {
-        p.polarityMarks ??= []; p.polarityMarks.push(label(i === 0 ? '+' : '−', g, x, .23, .806, .44, '#fff0cc', true));
-      } else if (namedPins) label(marks[i], g, x, .23, .806, marks.length > 4 ? .36 : .42, '#fff0cc', true);
+      const x = marks.length === 2 ? (i === 0 ? -.91 : .91) : ((i / (marks.length - 1)) - .5) * (marks.length > 4 ? 1.96 : 1.74); const rTerm = marks.length > 4 ? .115 : .14, rHit = marks.length > 4 ? .19 : .24, rRing = marks.length > 4 ? .175 : .21; const terminal = cylinder(rTerm, .2, brass, g, x, .4, .55); terminal.userData.terminal = p.id + ':' + i; const hit = new THREE.Mesh(new THREE.SphereGeometry(rHit, 12, 8), new THREE.MeshBasicMaterial({ visible: false })); hit.position.set(x, .49, .55); hit.userData.terminal = p.id + ':' + i; hit.userData.ownedMaterial = true; g.add(hit); terminals.set(p.id + ':' + i, hit); const ring = new THREE.Mesh(new THREE.TorusGeometry(rRing, .027, 8, 24), new THREE.MeshBasicMaterial({ color: '#ffda7e', transparent: true, opacity: 0 })); ring.rotation.x = -Math.PI / 2; ring.position.set(x, .52, .55); ring.userData.ownedMaterial = true; g.add(ring); p.rings.push(ring);
+      let labelMesh = null;
+      if (p.kind === 'battery') {
+        p.polarityMarks ??= []; labelMesh = label(i === 0 ? '+' : '−', g, x, .23, .806, .44, '#fff0cc', true); p.polarityMarks.push(labelMesh);
+      } else if (namedPins) labelMesh = label(marks[i], g, x, .23, .806, marks.length > 4 ? .36 : .42, '#fff0cc', true);
+      p.pinSlots.push({ terminal, hit, ring, labelMesh });
     }
     if (p.kind === 'battery' && p.reversed) showPolarity(p);
+    if (p.kind === 'gate') syncGatePins(p);
     const spec = partSpec(p.kind, p), baseName = houseLights[p.role] || p.role || partName(p.kind);
     label((spec ? `${baseName} · ${spec}` : baseName).toUpperCase(), g, 0, .282, -.6, spec ? 1.32 : .95); return p;
   }
+  function syncGatePins(p) {
+    if (!p || p.kind !== 'gate' || !p.pinSlots || p.pinSlots.length < 4) return;
+    const isNot = p.gateMode === 'NOT';
+    const slotB = p.pinSlots[1];
+    slotB.terminal.visible = !isNot;
+    slotB.hit.visible = !isNot;
+    slotB.ring.visible = !isNot;
+    if (slotB.labelMesh) slotB.labelMesh.visible = !isNot;
+    slotB.terminal.userData.terminal = isNot ? null : p.id + ':1';
+    slotB.hit.userData.terminal = isNot ? null : p.id + ':1';
+    if (isNot) {
+      if (pending === p.id + ':1') cancelWire();
+      if (hoverTerminal === p.id + ':1') hoverTerminal = null;
+      wires = wires.filter(w => w.a !== p.id + ':1' && w.b !== p.id + ':1');
+    }
+    const xs = isNot ? [-.87, 0, 0, .87] : [-.87, -.29, .29, .87];
+    for (let i = 0; i < 4; i++) {
+      const slot = p.pinSlots[i];
+      slot.terminal.position.x = xs[i];
+      slot.hit.position.x = xs[i];
+      slot.ring.position.x = xs[i];
+      if (slot.labelMesh) slot.labelMesh.position.x = xs[i];
+    }
+  }
   function showPolarity(p) {
+    p.shownReversed = !!p.reversed;
     const [plus, minus] = p.polarityMarks;
     plus.position.x = p.reversed ? .91 : -.91; minus.position.x = -plus.position.x;
     p.batteryBody[1].position.x = p.reversed ? .47 : -.47; p.batteryBody[2].position.x = p.reversed ? .7 : -.7;
@@ -269,7 +311,7 @@ export function initWorkshop({ userId = null, accountProgress = null, cloudReady
   }
   function saveState(quiet = true) {
     if (!game) return;
-    boards[level] = { parts: parts.map(({ id, kind, x, z, rotation, closed, resistance, charge, reversed, capacitance, color, role, gateMode, clockHz, bit, outputHigh }) => ({ id, kind, x, z, rotation, closed, resistance, charge, reversed, capacitance, color, role, gateMode, clockHz, bit, outputHigh })), wires: wires.map(w => ({ ...w })), view: { camera: camera.position.toArray(), target: controls.target.toArray(), pan: panMode } };
+    boards[level] = { parts: parts.map(({ id, kind, x, z, rotation, closed, throwB, resistance, wiper, fuseRating, blown, charge, reversed, capacitance, color, role, gateMode, clockHz, bit, outputHigh, conducting, lux, dial }) => ({ id, kind, x, z, rotation, closed, throwB, resistance, wiper, fuseRating, blown, charge, reversed, capacitance, color, role, gateMode, clockHz, bit, outputHigh, conducting, lux, dial })), wires: wires.map(w => ({ ...w })), view: { camera: camera.position.toArray(), target: controls.target.toArray(), pan: panMode } };
     const progress = encodeProgress(completed, boards), body = JSON.stringify(userId ? { userId, progress } : progress);
     try {
       localStorage.setItem(userId ? `little-circuit-v5:user:${userId}` : 'little-circuit-v5', JSON.stringify(progress));
@@ -319,10 +361,182 @@ export function initWorkshop({ userId = null, accountProgress = null, cloudReady
     $('mainframe-count').textContent = `${p.onlineCount} / ${p.totalCount}`;
     return p;
   }
+  function updateLibraryBadge() {
+    const unlockedSet = unlockedToolbelt(completed, LEVELS, false);
+    const unlockedNew = LIBRARY_UNLOCKS.filter(u => unlockedSet.has(u.kind)).length;
+    const totalParts = FREE_BUILD_PARTS.length;
+    const baseCount = totalParts - LIBRARY_UNLOCKS.length;
+    $('library-count').textContent = `${baseCount + unlockedNew} / ${totalParts}`;
+    return { unlockedSet, unlockedNew, totalNew: LIBRARY_UNLOCKS.length, totalParts, baseCount };
+  }
+  function updateMasterBadge() {
+    const p = masterProgress(completed, LEVELS);
+    $('master-count').textContent = `${p.doneCount} / ${p.totalCount}`;
+    return p;
+  }
+  function showMaster() {
+    const p = updateMasterBadge();
+    $('master-summary').textContent = `Open-ended proving builds with no step-by-step guides (${p.doneCount} / ${p.totalCount} solved).`;
+    const list = $('master-list');
+    list.replaceChildren();
+    for (const item of p.items) {
+      const row = document.createElement('div');
+      row.className = 'master-row' + (item.parentId ? ' sub' : '') + (item.done ? ' done' : '');
+      row.innerHTML = `<span class="master-code">${item.code}</span><div class="master-thumb">${diagram(item.diagram)}</div><div class="master-meta"><div class="master-title-row"><strong>${item.title}</strong><span class="master-diff">${item.difficulty}</span></div><p class="master-goal">${item.goal}</p></div><div class="master-actions"><span class="master-done">${item.done ? 'Solved' : 'Unsolved'}</span><button class="paper-button">${item.done ? 'Replay' : 'Open challenge'}</button></div>`;
+      row.querySelector('.paper-button').onclick = () => {
+        $('master').close();
+        startLevel(item.levelIndex);
+      };
+      list.append(row);
+    }
+    if (!$('master').open) $('master').showModal();
+  }
+  function showComponentGuide(kind) {
+    const guide = getComponentGuide(kind);
+    const displayName = houseChallenge() && kind === 'lamp'
+      ? 'House light'
+      : (inReadingRoom() && kind === 'lamp' ? 'Table lamp' : guide.name);
+    $('guide-title').textContent = displayName;
+    $('guide-spec').textContent = guide.spec || '';
+    $('guide-diagram').innerHTML = guide.diagramSvg || '';
+    $('guide-illustration').innerHTML = guide.illustrationSvg || '';
+    $('guide-summary').textContent = guide.summary || '';
+
+    const usage = $('guide-usage');
+    usage.replaceChildren();
+    for (const tip of guide.howToUse || []) {
+      const li = document.createElement('li');
+      li.textContent = tip;
+      usage.append(li);
+    }
+
+    const terms = $('guide-terminals');
+    terms.replaceChildren();
+    for (const t of guide.terminals || []) {
+      const row = document.createElement('div');
+      row.className = 'guide-terminal-row';
+      row.innerHTML = `<span class="guide-pin">${t.pin}</span><strong>${t.name}</strong><span>${t.role}</span>`;
+      terms.append(row);
+    }
+
+    const unlockedSet = unlockedToolbelt(completed, LEVELS, false);
+    const req = LIBRARY_UNLOCKS.find(u => u.kind === kind);
+    const status = $('guide-status');
+    const action = $('guide-unlock-action');
+    if (!req) {
+      status.textContent = 'Included in Free build';
+      status.className = 'guide-status unlocked';
+      action.hidden = true;
+      action.onclick = null;
+    } else if (unlockedSet.has(kind)) {
+      status.textContent = 'Unlocked in Free build';
+      status.className = 'guide-status unlocked';
+      const challengeIdx = LEVELS.findIndex(l => l.id === req.challengeId);
+      if (challengeIdx >= 0 && (!game || LEVELS[level].id !== req.challengeId)) {
+        action.hidden = false;
+        action.textContent = `Practice: ${LEVELS[challengeIdx].title}`;
+        action.onclick = () => {
+          for (const d of document.querySelectorAll('dialog[open]')) d.close();
+          startLevel(challengeIdx);
+        };
+      } else {
+        action.hidden = true;
+        action.onclick = null;
+      }
+    } else {
+      status.textContent = 'Locked in Free build';
+      status.className = 'guide-status locked';
+      const challengeIdx = LEVELS.findIndex(l => l.id === req.challengeId);
+      if (challengeIdx >= 0) {
+        action.hidden = false;
+        action.textContent = `Learn in The Library: ${LEVELS[challengeIdx].title}`;
+        action.onclick = () => {
+          for (const d of document.querySelectorAll('dialog[open]')) d.close();
+          startLevel(challengeIdx);
+        };
+      } else {
+        action.hidden = true;
+        action.onclick = null;
+      }
+    }
+
+    $('component-guide').showModal();
+  }
+  let libraryFilter = 'all';
+  function showLibrary(nextFilter = libraryFilter) {
+    libraryFilter = nextFilter;
+    const { unlockedSet, unlockedNew, totalNew } = updateLibraryBadge();
+    $('library-summary').textContent = `Complete a guided build to learn and unlock each component in Free build (${unlockedNew} / ${totalNew} unlocked). Click ? on any card to see how it works.`;
+
+    const filters = $('library-filters');
+    filters.replaceChildren();
+    const filterItems = [
+      { id: 'all', label: 'All' },
+      { id: 'locked', label: 'To unlock' },
+      { id: 'unlocked', label: 'Unlocked' },
+      ...LIBRARY_SHELVES.map(s => ({ id: s.id, label: s.title }))
+    ];
+    for (const f of filterItems) {
+      const btn = document.createElement('button');
+      btn.className = 'library-filter' + (libraryFilter === f.id ? ' active' : '');
+      btn.textContent = f.label;
+      btn.onclick = () => showLibrary(f.id);
+      filters.append(btn);
+    }
+
+    const container = $('library-shelves');
+    container.replaceChildren();
+    for (const shelf of LIBRARY_SHELVES) {
+      if (!['all', 'locked', 'unlocked', shelf.id].includes(libraryFilter)) continue;
+      const items = LIBRARY_UNLOCKS.filter(item => {
+        if (item.shelf !== shelf.id) return false;
+        const isUnlocked = unlockedSet.has(item.kind);
+        if (libraryFilter === 'locked') return !isUnlocked;
+        if (libraryFilter === 'unlocked') return isUnlocked;
+        return true;
+      });
+      if (!items.length) continue;
+
+      const h = document.createElement('h3');
+      h.className = 'mainframe-section-title';
+      h.textContent = shelf.title;
+      container.append(h);
+
+      const grid = document.createElement('div');
+      grid.className = 'library-grid';
+      for (const item of items) {
+        const ok = unlockedSet.has(item.kind);
+        const chIdx = LEVELS.findIndex(l => l.id === item.challengeId);
+        const ch = LEVELS[chIdx];
+        const guide = getComponentGuide(item.kind);
+        const card = document.createElement('div');
+        card.className = 'library-card ' + (ok ? 'unlocked' : 'locked');
+        card.innerHTML = `<div class="library-card-top"><span class="svg-icon">${icon(item.kind)}</span><div><strong>${item.label}</strong><small>${guide.spec}</small></div><button class="part-help library-card-help" title="How to use ${item.label}" aria-label="How to use ${item.label}">?</button></div><p class="library-card-goal">${ch ? ch.goal : guide.summary}</p><div class="library-card-foot"><span class="library-badge">${ok ? 'Unlocked' : 'Locked'}</span><button class="paper-button library-play-btn">${ok ? 'Replay' : 'Learn part'}</button></div>`;
+        card.querySelector('.library-card-help').onclick = () => showComponentGuide(item.kind);
+        card.querySelector('.library-play-btn').onclick = () => {
+          if (chIdx >= 0) {
+            $('library').close();
+            startLevel(chIdx);
+          }
+        };
+        grid.append(card);
+      }
+      container.append(grid);
+    }
+    if (!container.childElementCount) {
+      const empty = document.createElement('p');
+      empty.className = 'library-empty';
+      empty.textContent = libraryFilter === 'locked'
+        ? 'Every component in the library is unlocked.'
+        : 'No components match this filter yet.';
+      container.append(empty);
+    }
+    if (!$('library').open) $('library').showModal();
+  }
   function showMainframe() {
     const p = updateMainframeBadge();
     $('mainframe-summary').textContent = p.coreBooted
-      ? `Observatory Mainframe online (${p.onlineCount} / ${p.totalCount} systems). All Free build tools are ready.`
+      ? `Observatory Mainframe online (${p.onlineCount} / ${p.totalCount} systems). All Observatory modules are ready in Free build.`
       : `Bring all 5 Workshop feeds and 6 Observatory modules online to boot the Observatory Mainframe (${p.onlineCount} / ${p.totalCount}).`;
     $('mainframe-blueprint').innerHTML = mainframeBlueprintSvg(p);
     const sections = $('mainframe-sections'); sections.replaceChildren();
@@ -347,13 +561,14 @@ export function initWorkshop({ userId = null, accountProgress = null, cloudReady
       return b;
     });
     const belt = $('toolbelt-section'); belt.replaceChildren();
-    const bh = document.createElement('h3'); bh.className = 'mainframe-section-title'; bh.textContent = 'Free Build Toolbelt'; belt.append(bh);
-    const unlockedSet = unlockedToolbelt(completed, LEVELS, !!userId);
+    const bh = document.createElement('h3'); bh.className = 'mainframe-section-title'; bh.textContent = 'Observatory Toolbelt'; belt.append(bh);
+    const unlockedSet = unlockedToolbelt(completed, LEVELS, false);
     const bgrid = document.createElement('div'); bgrid.className = 'toolbelt-grid';
     for (const item of TOOLBELT_UNLOCKS) {
       const ok = unlockedSet.has(item.kind), src = LEVELS.find(other => other.id === item.byLevel);
       const div = document.createElement('div'); div.className = 'toolbelt-chip ' + (ok ? 'unlocked' : 'locked');
-      div.innerHTML = `<span class="svg-icon">${icon(item.kind)}</span><div><div>${item.label}</div><small>${ok ? 'Unlocked' : src ? src.title : 'Observatory'}</small></div>`;
+      div.innerHTML = `<span class="svg-icon">${icon(item.kind)}</span><div><div>${item.label}</div><small>${ok ? 'Unlocked' : src ? src.title : 'Observatory'}</small></div><button class="part-help toolbelt-help" title="How to use ${item.label}" aria-label="How to use ${item.label}">?</button>`;
+      div.querySelector('.toolbelt-help').onclick = () => showComponentGuide(item.kind);
       bgrid.append(div);
     }
     belt.append(bgrid);
@@ -371,9 +586,25 @@ export function initWorkshop({ userId = null, accountProgress = null, cloudReady
     let s = solveCircuit(parts, wires, powered ? dt : 0, env);
     Object.assign(s, env); circuitState = s;
     let changed = false;
-    if (powered && !s.short) {
-      changed = applyStep(parts, s);
+    if (powered && Object.keys(s.nextFuses || {}).length > 0) {
+      for (const p of parts) {
+        if (p.kind === 'fuse' && s.nextFuses[p.id]?.blown && !p.blown) {
+          p.blown = true;
+          changed = true;
+        }
+      }
       if (changed) {
+        toast('Fuse blew to protect the circuit. Select it to replace.');
+        beep(false);
+        if (selected?.kind === 'fuse') select(selected);
+        s = solveCircuit(parts, wires, 0, env);
+        Object.assign(s, env); circuitState = s;
+      }
+    }
+    if (powered && !s.short) {
+      const stepped = applyStep(parts, s);
+      if (stepped) {
+        changed = true;
         s = solveCircuit(parts, wires, 0, env);
         Object.assign(s, env); circuitState = s;
       }
@@ -405,6 +636,7 @@ export function initWorkshop({ userId = null, accountProgress = null, cloudReady
       }
       const rang = activity.rang;
       measureActivity(lesson, parts, wires, s, activity, powered, dt);
+      for (const p of parts) if (p.kind === 'battery' && p.rogue && p.reversed !== p.shownReversed) showPolarity(p);
       if (!rang && activity.rang) beep(true);
       if (activity.bonus && activity.delivered) $('activity-goal').hidden = true;
       fixture?.update(activity, parts, s, powered, mainframeProgress(completed, LEVELS));
@@ -452,7 +684,7 @@ export function initWorkshop({ userId = null, accountProgress = null, cloudReady
     $('power').classList.toggle('on', powered); $('power').setAttribute('aria-pressed', String(powered)); $('power').setAttribute('aria-label', powered ? 'Turn off power' : 'Turn on power'); $('power').title = powered ? 'Turn off power' : 'Turn on power'; $('current').textContent = `${powered ? s.current.toFixed(LEVELS[level].id === 'series-resistors' ? 3 : 2) : (LEVELS[level].id === 'series-resistors' ? '0.000' : '0.00')} A`; const flowing = powered && Object.values(s.currents).some(v => Math.abs(v) > .0001); const state = s.short ? 'Short circuit' : recentBlast ? 'Circuit exploded' : activity.tripped ? 'Breaker tripped' : powered ? (flowing ? 'Current flowing' : 'Open circuit') : 'Power off'; $('board-status').classList.toggle('flowing', flowing); $('board-status').classList.toggle('fault', s.short || recentBlast || !!activity.tripped); $('board-status').title = state; $('board-status').setAttribute('aria-label', state); $('empty-prompt').hidden = parts.length > 0; $('challenge-readings').hidden = !lesson.challenge && !lesson.activity && lesson.id !== 'resistor-challenge'; $('challenge-readings').textContent = s.designReading ?? (lesson.id === 'resistor-challenge' ? rcText : '');
     s.branchControl = branchProof;
     refreshTeaching();
-    if (game && powered && !s.short && LEVELS[level].check(s) && (skipTeaching || lessonStep >= LESSONS[level].length) && !wonThisVisit) { wonThisVisit = true; if (!completed.includes(level)) completed.push(level); saveState(); updateMainframeBadge(); $('goal-icon').innerHTML = icon('check'); $('goal-icon').setAttribute('aria-label', 'Complete'); $('goal-picture').classList.add('complete'); const unlockedNames = (LEVELS[level].unlocks || []).map(k => deviceNames[k]).filter(Boolean); const baseEnd = LEVELS[level].ending || LESSON_ENDINGS[existingLevels.indexOf(LEVELS[level])] || ''; $('win-learning').textContent = unlockedNames.length ? `${baseEnd} Toolbelt unlocked: ${unlockedNames.join(', ')}.` : baseEnd; $('next').innerHTML = (LEVELS[level + 1]?.id === 'sandbox' ? 'Free build' : LEVELS[level + 1]?.unit !== LEVELS[level].unit ? 'Start ' + LEVELS[level + 1].unit.toLowerCase() : 'Next') + icon('next'); updateProgress(); $('win').hidden = false; $('activity-goal').hidden = true; $('completion-status').textContent = 'Level complete.'; beep(true); }
+    if (game && powered && !s.short && LEVELS[level].check(s) && (LEVELS[level].activity || skipTeaching || lessonStep >= LESSONS[level].length) && !wonThisVisit) { wonThisVisit = true; if (!completed.includes(level)) completed.push(level); saveState(); updateMainframeBadge(); updateLibraryBadge(); updateMasterBadge(); $('teaching').hidden = true; $('goal-icon').innerHTML = icon('check'); $('goal-icon').setAttribute('aria-label', 'Complete'); $('goal-picture').classList.add('complete'); const unlockedNames = (LEVELS[level].unlocks || []).map(k => names[k] || deviceNames[k]).filter(Boolean); const baseEnd = LEVELS[level].ending || LESSON_ENDINGS[existingLevels.indexOf(LEVELS[level])] || ''; $('win-learning').textContent = unlockedNames.length ? `${baseEnd} Unlocked in Free build: ${unlockedNames.join(', ')}.` : baseEnd; $('next').innerHTML = (LEVELS[level + 1]?.id === 'sandbox' ? 'Free build' : LEVELS[level + 1]?.unit !== LEVELS[level].unit ? 'Start ' + LEVELS[level + 1].unit.toLowerCase() : 'Next') + icon('next'); updateProgress(); $('win').hidden = false; $('activity-goal').hidden = true; $('completion-status').textContent = 'Level complete.'; beep(true); }
   }
   function toggleSwitch(p) {
     if (powered && p.closed) {
@@ -464,7 +696,40 @@ export function initWorkshop({ userId = null, accountProgress = null, cloudReady
     if (powered && !p.closed && motor && circuitState.halfSpeed && Math.abs(before.currents[p.id] || 0) > .09 && Math.abs(after.currents[motor.id] || 0) < .001) history.stopped = true;
     if (powered && LEVELS[level].id === 'branches' && !before.short && !after.short && ((before.lit === 1 && after.lit === 2) || (before.lit === 2 && after.lit === 1))) branchProof = true; select(p); updateCircuit(0, { before, switched: p }); saveState();
   }
-  function select(p) { selected = p; $('selection').hidden = !p; if (!p) return; const spec = partSpec(p.kind, p), title = houseLights[p.role] || p.role || partName(p.kind); $('selection-name').textContent = spec ? `${title} · ${spec}` : title; $('value-label').hidden = p.kind !== 'resistor'; $('reverse').hidden = p.kind !== 'battery' || !reversible(); $('toggle').hidden = p.kind !== 'switch'; $('gate-mode-label').hidden = p.kind !== 'gate'; $('clock-rate-label').hidden = p.kind !== 'clock'; $('press-button').hidden = p.kind !== 'button'; $('reset-latch').hidden = p.kind !== 'latch'; if (p.kind === 'switch') { $('toggle').setAttribute('aria-label', p.closed ? 'Open switch' : 'Close switch'); $('toggle').title = p.closed ? 'Open switch' : 'Close switch'; $('toggle').classList.toggle('closed', p.closed); } if (p.kind === 'resistor') { $('resistor-value').value = p.resistance; $('resistor-output').textContent = p.resistance + ' Ω'; } if (p.kind === 'gate') $('gate-mode').value = p.gateMode || 'NAND'; if (p.kind === 'clock') $('clock-rate').value = String(p.clockHz || 1); }
+  function toggleSpdt(p) {
+    p.throwB = !p.throwB;
+    select(p); updateCircuit(); saveState(); beep();
+  }
+  function select(p) {
+    selected = p; $('selection').hidden = !p; if (!p) return;
+    const spec = partSpec(p.kind, p), title = houseLights[p.role] || p.role || partName(p.kind);
+    $('selection-name').textContent = spec ? `${title} · ${spec}` : title;
+    $('value-label').hidden = p.kind !== 'resistor';
+    $('pot-label').hidden = p.kind !== 'pot';
+    $('fuse-rating-label').hidden = p.kind !== 'fuse';
+    $('replace-fuse').hidden = !(p.kind === 'fuse' && p.blown);
+    const hidePhotoSlider = p.kind !== 'photo' || ['light-meter', 'dispatch'].includes(LEVELS[level].id);
+    $('photo-lux-label').hidden = hidePhotoSlider;
+    const hideServoSlider = p.kind !== 'servo' || ['servo-gate', 'dispatch'].includes(LEVELS[level].id);
+    $('servo-dial-label').hidden = hideServoSlider;
+    $('reverse').hidden = p.kind !== 'battery' || !reversible();
+    $('toggle').hidden = p.kind !== 'switch' && p.kind !== 'spdt';
+    $('gate-mode-label').hidden = p.kind !== 'gate';
+    $('clock-rate-label').hidden = p.kind !== 'clock';
+    $('press-button').hidden = p.kind !== 'button';
+    $('reset-latch').hidden = p.kind !== 'latch';
+    $('delete').disabled = !!p.fixed;
+    $('delete').title = p.fixed ? 'Fixed circuit part' : 'Remove part';
+    if (p.kind === 'switch') { $('toggle').setAttribute('aria-label', p.closed ? 'Open switch' : 'Close switch'); $('toggle').title = p.closed ? 'Open switch' : 'Close switch'; $('toggle').classList.toggle('closed', p.closed); }
+    if (p.kind === 'spdt') { $('toggle').setAttribute('aria-label', p.throwB ? 'Switch to A' : 'Switch to B'); $('toggle').title = p.throwB ? 'Switch to A' : 'Switch to B'; $('toggle').classList.toggle('closed', !!p.throwB); }
+    if (p.kind === 'resistor') { $('resistor-value').value = p.resistance; $('resistor-output').textContent = p.resistance + ' Ω'; }
+    if (p.kind === 'pot') { const pct = Math.round((p.wiper ?? 0.5) * 100); $('pot-value').value = String(pct); $('pot-output').textContent = pct + '%'; }
+    if (p.kind === 'fuse') { $('fuse-rating').value = String(p.fuseRating || 0.35); }
+    if (!hidePhotoSlider) { const lux = Math.round(p.lux ?? 100); $('photo-lux').value = String(lux); $('photo-lux-output').textContent = lux <= 25 ? 'Dark' : lux >= 75 ? 'Bright' : lux + '%'; }
+    if (!hideServoSlider) { const deg = Math.round(p.dial ?? 0); $('servo-dial').value = String(deg); $('servo-dial-output').textContent = deg + '°'; }
+    if (p.kind === 'gate') $('gate-mode').value = p.gateMode || 'NAND';
+    if (p.kind === 'clock') $('clock-rate').value = String(p.clockHz || 1);
+  }
   function fits(x, z, kind, except, rotation = 0) { return partFits(parts, x, z, kind, inReadingRoom(), except, rotation); }
   function rotateSelected() {
     if (!selected) return;
@@ -482,37 +747,64 @@ export function initWorkshop({ userId = null, accountProgress = null, cloudReady
     saveState(); beep();
   }
   function addPart(kind, pos) {
-    if (pliersActive) setPliers(false); const free = isFree(); if (parts.length >= (free ? BOARD.freeLimit : BOARD.lessonLimit)) return toast('Component limit reached'); if (kind === 'jack' && parts.some(p => p.kind === 'jack')) return toast('The tester has one socket'); if (kind === 'battery' && parts.some(p => p.kind === 'battery')) return toast('1 battery per board'); let location = pos ? boardPosition(pos.x, pos.z, free, kind, inReadingRoom()) : null; if (!location || !fits(location.x, location.z, kind)) location = findSpace(parts, { x: Math.round(controls.target.x * 2) / 2, z: Math.round(controls.target.z * 2) / 2 }, free, kind, inReadingRoom()); if (!location) return toast('No space here'); const role = kind === 'lamp' && houseChallenge() ? Object.keys(houseLights).find(role => !parts.some(p => p.role === role)) : undefined;
-    const extra = kind === 'gate' ? { gateMode: 'NAND', outputHigh: true } : kind === 'clock' ? { clockHz: 1, phase: 0, high: false } : kind === 'latch' ? { bit: 0, prevClk: null } : {};
+    if (pliersActive) setPliers(false); const free = isFree(); if (parts.length >= (free ? BOARD.freeLimit : BOARD.lessonLimit)) return toast('Component limit reached'); if (kind === 'jack' && parts.some(p => p.kind === 'jack')) return toast('The tester has one socket'); if (kind === 'battery' && parts.some(p => p.kind === 'battery')) return toast('1 battery per board'); if (kind === 'cannon' && parts.some(p => p.kind === 'cannon')) return toast('1 cannon per board'); let location = pos ? boardPosition(pos.x, pos.z, free, kind, inReadingRoom()) : null; if (!location || !fits(location.x, location.z, kind)) location = findSpace(parts, { x: Math.round(controls.target.x * 2) / 2, z: Math.round(controls.target.z * 2) / 2 }, free, kind, inReadingRoom()); if (!location) return toast('No space here'); const role = kind === 'lamp' && houseChallenge() ? Object.keys(houseLights).find(role => !parts.some(p => p.role === role)) : undefined;
+    const extra = kind === 'gate'
+      ? { gateMode: 'NAND', outputHigh: true }
+      : kind === 'clock'
+        ? { clockHz: 1, phase: 0, high: false }
+        : kind === 'latch'
+          ? { bit: 0, prevClk: null }
+          : kind === 'pot'
+            ? { wiper: 0.5 }
+            : kind === 'fuse'
+              ? { fuseRating: 0.35, blown: false }
+              : kind === 'spdt'
+                ? { throwB: false }
+                : kind === 'photo'
+                  ? { lux: 100 }
+                  : kind === 'servo'
+                    ? { dial: 0 }
+                    : kind === 'transistor'
+                      ? { conducting: false }
+                      : {};
     const p = makePart({ id: 'p' + (++serial), kind, role, ...location, rotation: 0, closed: false, resistance: 30, ...extra }); parts.push(p); select(p); updateCircuit(); saveState(); beep(); return p;
   }
 
   function resetParts() { shadeDrag = null; fixture?.dispose(); fixture = null; refreshActivityControls = () => { }; setPliers(false); clearTimeout(blastTimer); faultLatched = false; recentBlast = false; shortEffects.clear(); for (const t of buttonTimers.values()) clearTimeout(t); buttonTimers.clear(); for (const lead of liftedLeads.keys()) disposeObject(lead); liftedLeads.clear(); cancelWire(); for (const c of [...componentGroup.children]) disposeObject(c); terminals.clear(); parts = []; wires = []; redrawWires(); select(null); powered = false; simActive = false; branchProof = false; history = newHistory(); trial = newTrial(); activity = freshActivity(); capMoving = false; lastTick = 0; }
   function startLevel(i, restart = false) {
-    if (game && !restart) saveState(); game = true; level = i; setRoom(); lessonStep = 0; skipTeaching = false; wonThisVisit = false; resetParts(); updateMainframeBadge(); setPanMode(false); $('landing').hidden = true; $('game').hidden = false; $('viewport').append(renderer.domElement); $('win').hidden = true; $('completion-status').textContent = ''; $('hint').hidden = true; const l = LEVELS[i];
+    if (game && !restart) saveState(); game = true; level = i; setRoom(); lessonStep = 0; skipTeaching = false; wonThisVisit = false; resetParts(); updateMainframeBadge(); updateLibraryBadge(); updateMasterBadge(); setPanMode(false); $('landing').hidden = true; $('game').hidden = false; $('viewport').append(renderer.domElement); $('win').hidden = true; $('completion-status').textContent = ''; $('hint').hidden = true; const l = LEVELS[i];
     if (l.id !== 'sandbox') { lastLevel = i; try { localStorage.setItem(lastKey, l.id); } catch { } }
     fixture = createActivityScene(l, scene);
     $('activity-goal').hidden = !l.activity; $('activity-goal').textContent = l.activity ? l.goal : '';
-    $('replay-lesson').hidden = !!l.activity;
+    $('replay-lesson').hidden = !!(l.master || (l.activity && l.unit !== 'Observatory' && !l.library));
     $('challenge-readings').classList.toggle('meter-reading', false);
     $('game').dataset.activity = l.id;
-    if (l.activity) skipTeaching = true;
+    if (l.master || (l.activity && l.unit !== 'Observatory' && !l.library)) skipTeaching = true;
     refreshActivityControls = activityControls($('activity-controls'), l, activity, runActivity);
     $('reset').title = l.layout ? 'Restart experiment' : 'Clear board'; $('reset').setAttribute('aria-label', $('reset').title);
     $('power').hidden = $('current').hidden = false;
-    $('progress').hidden = false; updateProgress(); $('unit-name').textContent = unitOf(l).label; $('level-number').textContent = l.id === 'sandbox' ? '∞' : String(lessonNumber(l)).padStart(2, '0') + ' / ' + String(unitLevels(l).length).padStart(2, '0'); $('challenge-target').hidden = !l.target; $('challenge-target').textContent = l.target ? `Target: ${l.target}` : ''; $('level-title').textContent = l.title; $('goal-picture').innerHTML = diagram(l.diagram); $('goal-picture').setAttribute('aria-label', l.goal); $('goal-picture').classList.toggle('complete', completed.includes(i)); $('goal-icon').innerHTML = completed.includes(i) ? icon('check') : '○'; $('goal-icon').setAttribute('aria-label', completed.includes(i) ? 'Complete' : 'Incomplete'); $('hint').textContent = l.hint; $('parts').replaceChildren();
-    const free = isFree(), unlockedSet = free ? unlockedToolbelt(completed, LEVELS, !!userId) : null;
-    for (const kind of l.parts) {
+    $('progress').hidden = false; updateProgress(); $('unit-name').textContent = unitOf(l).label; $('level-number').textContent = l.id === 'sandbox' ? '∞' : l.master ? 'Challenge ' + l.code : String(lessonNumber(l)).padStart(2, '0') + ' / ' + String(unitLevels(l).length).padStart(2, '0'); $('challenge-target').hidden = !l.target; $('challenge-target').textContent = l.target ? `Target: ${l.target}` : ''; $('level-title').textContent = l.title; $('goal-picture').innerHTML = diagram(l.diagram); $('goal-picture').setAttribute('aria-label', l.goal); $('goal-picture').classList.toggle('complete', completed.includes(i)); $('goal-icon').innerHTML = completed.includes(i) ? icon('check') : '○'; $('goal-icon').setAttribute('aria-label', completed.includes(i) ? 'Complete' : 'Incomplete'); $('hint').textContent = l.hint; $('parts').replaceChildren();
+    const free = isFree(), unlockedSet = free ? unlockedToolbelt(completed, LEVELS, false) : null;
+    for (const kind of (l.trayParts || l.parts)) {
       const locked = free && !unlockedSet.has(kind);
       const spec = partSpec(kind);
+      const slot = document.createElement('div'); slot.className = 'part-slot';
       const b = document.createElement('button'); b.className = 'part' + (locked ? ' locked' : ''); b.dataset.kind = kind; b.setAttribute('aria-label', (locked ? 'Locked: ' : 'Add ') + partName(kind) + (spec ? ` (${spec})` : '')); b.innerHTML = `<span class="part-icon">${icon(inReadingRoom() && !houseChallenge() && kind === 'lamp' ? 'tableLamp' : kind)}</span><span class="part-label">${partName(kind)}</span>${spec ? `<span class="part-spec">${spec}</span>` : ''}${locked ? `<span class="part-lock">${icon('lock')}</span>` : ''}`;
       if (locked) {
-        const req = TOOLBELT_UNLOCKS.find(u => u.kind === kind), src = LEVELS.find(other => other.id === req?.byLevel);
-        listen(b, 'click', () => toast(src ? `Complete ${src.title} in Observatory to unlock ${partName(kind)}` : `Unlock in Unit 5 · Observatory`));
+        listen(b, 'click', () => showComponentGuide(kind));
       } else {
         listen(b, 'pointerdown', e => startBinDrag(e, kind)); listen(b, 'click', e => { if (e.detail === 0) addPart(kind) });
       }
-      $('parts').append(b);
+      const helpBtn = document.createElement('button');
+      helpBtn.className = 'part-help';
+      helpBtn.type = 'button';
+      helpBtn.textContent = '?';
+      helpBtn.title = `How to use ${partName(kind)}`;
+      helpBtn.setAttribute('aria-label', `How to use ${partName(kind)}`);
+      listen(helpBtn, 'pointerdown', e => e.stopPropagation());
+      listen(helpBtn, 'click', e => { e.stopPropagation(); showComponentGuide(kind); });
+      slot.append(b, helpBtn);
+      $('parts').append(slot);
     }
     const starter = starterBoard(l);
     const saved = restart ? starter : (boards[i] || starter); if (saved && Array.isArray(saved.parts) && Array.isArray(saved.wires)) {
@@ -521,7 +813,7 @@ export function initWorkshop({ userId = null, accountProgress = null, cloudReady
         const gateMode = ['NAND', 'NOR', 'AND', 'OR', 'XOR', 'NOT'].includes(p.gateMode) ? p.gateMode : original?.gateMode || 'NAND';
         const clockHz = [.5, 1, 2, 4].includes(Number(p.clockHz)) ? Number(p.clockHz) : original?.clockHz || 1;
         const rotation = ((Number(p.rotation) || 0) % 4 + 4) % 4;
-        parts.push(makePart({ ...original, ...p, ...boardPosition(p.x, p.z, isFree(), p.kind, inReadingRoom(), rotation), rotation, resistance: Math.max(10, Math.min(100, Number(p.resistance) || 30)), closed: Boolean(p.closed ?? original?.closed), charge: Number.isFinite(p.charge) ? Math.max(-6, Math.min(6, p.charge)) : 0, reversed: !!p.reversed, gateMode, clockHz, bit: p.bit ? 1 : 0, outputHigh: p.outputHigh !== undefined ? !!p.outputHigh : !!original?.outputHigh, prevClk: null }));
+        parts.push(makePart({ ...original, ...p, ...boardPosition(p.x, p.z, isFree(), p.kind, inReadingRoom(), rotation), rotation, fixed: Boolean(p.fixed ?? original?.fixed), rogue: Boolean(p.rogue ?? original?.rogue), resistance: Math.max(10, Math.min(100, Number(p.resistance) || 30)), closed: Boolean(p.closed ?? original?.closed), throwB: Boolean(p.throwB ?? original?.throwB), wiper: Number.isFinite(p.wiper) ? Math.max(0, Math.min(1, p.wiper)) : original?.wiper ?? 0.5, fuseRating: [.2, .35, .5].includes(Number(p.fuseRating)) ? Number(p.fuseRating) : original?.fuseRating || .35, blown: Boolean(p.blown ?? original?.blown), conducting: Boolean(p.conducting ?? original?.conducting), lux: Number.isFinite(p.lux) ? Math.max(0, Math.min(100, p.lux)) : original?.lux ?? 100, dial: Number.isFinite(p.dial) ? Math.max(-45, Math.min(45, p.dial)) : original?.dial ?? 0, charge: Number.isFinite(p.charge) ? Math.max(-6, Math.min(6, p.charge)) : 0, reversed: !!p.reversed, gateMode, clockHz, bit: p.bit ? 1 : 0, outputHigh: p.outputHigh !== undefined ? !!p.outputHigh : !!original?.outputHigh, prevClk: null }));
       } wires = saved.wires.slice(0, 512).filter(w => terminals.has(w.a) && terminals.has(w.b) && w.a !== w.b);
     }
     if (!saved && inReadingRoom()) parts.push(makePart({ id: 'p' + (++serial), kind: 'lamp', x: 2, z: 0 }));
@@ -573,7 +865,7 @@ export function initWorkshop({ userId = null, accountProgress = null, cloudReady
     }
     if (pending) { const p = boardPoint(e), a = terminalPosition(pending); clearPreview(); if (a && p) { preview = wireMesh(a, new THREE.Vector3(p.x, .6, p.z), '#cda357'); scene.add(preview); } renderer.domElement.style.cursor = 'crosshair'; return; } if (drag) { const pos = boardPoint(e); if (!pos || !drag.start) return; if (!drag.moved && Math.hypot(e.clientX - drag.px, e.clientY - drag.py) > 5) { drag.moved = true; if (drag.p.kind === 'button' && drag.p.closed) { drag.p.closed = false; updateCircuit(); } } const { x, z } = boardPosition(drag.x + pos.x - drag.start.x, drag.z + pos.z - drag.start.z, isFree(), drag.p.kind, inReadingRoom(), drag.p.rotation || 0); if (fits(x, z, drag.p.kind, drag.p, drag.p.rotation || 0)) { Object.assign(drag.p, { x, z }); drag.p.mesh.position.set(x, .14, z); redrawWires(); if (drag.p.kind === 'photo') updateCircuit(); } return; } const h = hits(e); hoverTerminal = h.find(v => v.object.userData.terminal)?.object.userData.terminal || null; renderer.domElement.style.cursor = hoverTerminal ? 'crosshair' : h.length ? 'grab' : 'default';
   });
-  function endPointer() { shadeDrag = null; if (drag) { if (drag.p.kind === 'switch' && !drag.moved) { toggleSwitch(drag.p); } else if (drag.p.kind === 'button' && !drag.moved) { const btn = drag.p, remain = Math.max(0, 260 - (performance.now() - (btn.pressedAt || 0))); clearTimeout(buttonTimers.get(btn.id)); if (remain <= 15) { btn.closed = false; updateCircuit(); } else { buttonTimers.set(btn.id, setTimeout(() => { buttonTimers.delete(btn.id); btn.closed = false; updateCircuit(); }, remain)); } } saveState(); drag = null; } controls.enabled = true; }
+  function endPointer() { shadeDrag = null; if (drag) { if (drag.p.kind === 'switch' && !drag.moved) { toggleSwitch(drag.p); } else if (drag.p.kind === 'spdt' && !drag.moved) { toggleSpdt(drag.p); } else if (drag.p.kind === 'button' && !drag.moved) { const btn = drag.p, remain = Math.max(0, 260 - (performance.now() - (btn.pressedAt || 0))); clearTimeout(buttonTimers.get(btn.id)); if (remain <= 15) { btn.closed = false; updateCircuit(); } else { buttonTimers.set(btn.id, setTimeout(() => { buttonTimers.delete(btn.id); btn.closed = false; updateCircuit(); }, remain)); } } saveState(); drag = null; } controls.enabled = true; }
   listen(renderer.domElement, 'pointerup', e => {
     if (pliersActive) {
       const lead = grip?.lead;
@@ -585,8 +877,9 @@ export function initWorkshop({ userId = null, accountProgress = null, cloudReady
   listen(renderer.domElement, 'pointerleave', () => { if (!grip) highlightLead(null); });
   listen(renderer.domElement, 'pointercancel', () => { grip = null; highlightLead(null); if (pliersActive) renderer.domElement.style.cursor = openPliers; }); listen(renderer.domElement, 'pointercancel', endPointer); listen(window, 'pointerup', () => controls.enabled = true);
   function startBinDrag(e, kind) { if (e.button !== 0) return; e.preventDefault(); const sx = e.clientX, sy = e.clientY; let moved = false, ghost; const move = ev => { if (Math.hypot(ev.clientX - sx, ev.clientY - sy) > 5) moved = true; if (moved) { if (!ghost) { ghost = document.createElement('div'); ghost.className = 'drag-ghost'; ghost.innerHTML = icon(inReadingRoom() && !houseChallenge() && kind === 'lamp' ? 'tableLamp' : kind); document.body.append(ghost) } ghost.style.left = ev.clientX - 28 + 'px'; ghost.style.top = ev.clientY - 28 + 'px'; } }; const up = ev => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', cancel); ghost?.remove(); if (!moved) { addPart(kind); return; } const r = renderer.domElement.getBoundingClientRect(); if (ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom) addPart(kind, boardPoint(ev)); }; const cancel = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', cancel); ghost?.remove(); }; listen(window, 'pointermove', move); listen(window, 'pointerup', up); listen(window, 'pointercancel', cancel); }
-  function removeSelected() { if (!selected) return; cancelWire(); const p = selected; wires = wires.filter(w => !w.a.startsWith(p.id + ':') && !w.b.startsWith(p.id + ':')); p.rings.forEach((_, i) => terminals.delete(p.id + ':' + i)); disposeObject(p.mesh); parts = parts.filter(q => q !== p); select(null); redrawWires(); updateCircuit(); saveState(); }
-  $('play').onclick = () => startLevel(nextPlayLevel(completed, lastLevel, !!userId)); for (const id of ['guide-button', 'landing-guide']) $(id).onclick = showGuide; for (const id of ['mainframe-button', 'landing-mainframe']) $(id).onclick = showMainframe; $('open-freebuild').onclick = () => { $('mainframe').close(); startLevel(LEVELS.length - 1); };
+  function removeSelected() { if (!selected || selected.fixed) return; cancelWire(); const p = selected; wires = wires.filter(w => !w.a.startsWith(p.id + ':') && !w.b.startsWith(p.id + ':')); p.rings.forEach((_, i) => terminals.delete(p.id + ':' + i)); disposeObject(p.mesh); parts = parts.filter(q => q !== p); select(null); redrawWires(); updateCircuit(); saveState(); }
+  $('play').onclick = () => startLevel(nextPlayLevel(completed, lastLevel, !!userId)); for (const id of ['guide-button', 'landing-guide']) $(id).onclick = showGuide; for (const id of ['mainframe-button', 'landing-mainframe']) $(id).onclick = showMainframe; for (const id of ['library-button', 'landing-library']) $(id).onclick = () => showLibrary(); for (const id of ['master-button', 'landing-master']) $(id).onclick = showMaster; $('open-freebuild').onclick = () => { $('mainframe').close(); startLevel(LEVELS.length - 1); }; $('mainframe-open-library').onclick = () => { $('mainframe').close(); showLibrary(); }; $('library-freebuild').onclick = () => { $('library').close(); startLevel(LEVELS.length - 1); }; $('guide-close-action').onclick = () => $('component-guide').close(); $('selection-help').onclick = () => { if (selected) showComponentGuide(selected.kind); };
+  for (const id of ['library', 'master', 'component-guide']) listen($(id), 'click', e => { if (e.target === $(id)) $(id).close(); });
   $('home').onclick = () => { if (game) saveState(); game = false; setRoom(); setPanMode(false); resetParts(); $('game').hidden = true; $('landing').hidden = false; $('progress').hidden = true; $('teaching').hidden = true; document.querySelectorAll('.lesson-focus').forEach(e => e.classList.remove('lesson-focus')); $('hero-scene').append(renderer.domElement); hero(); resize(); };
   for (const b of document.querySelectorAll('.close-dialog')) b.onclick = () => b.closest('dialog').close(); $('help-button').onclick = () => $('help').showModal(); $('cancel-wire').onclick = cancelWire; document.querySelector('.close-help').onclick = () => $('help').close(); $('teaching-next').onclick = () => { lessonStep++; updateCircuit(); }; $('skip-teaching').onclick = () => { skipTeaching = true; updateCircuit(); }; $('replay-lesson').onclick = () => { lessonStep = 0; skipTeaching = false; refreshTeaching(); }; $('hint-button').onclick = () => $('hint').hidden = !$('hint').hidden; $('save').onclick = () => saveState(false); $('camera').onclick = resetCamera; $('pan').onclick = () => { if (pliersActive) setPliers(false); setPanMode(!panMode); };
   $('power').onclick = () => {
@@ -598,6 +891,9 @@ export function initWorkshop({ userId = null, accountProgress = null, cloudReady
       if (p.kind === 'gate') { p.gateTimer = 0; if (LEVELS[level].id === 'mainframe-boot' && powered) p.outputHigh = ['NOT', 'NAND', 'NOR'].includes(p.gateMode); }
       if (p.kind === 'latch') { p.prevClk = null; if (LEVELS[level].id === 'mainframe-boot' && powered) p.bit = 0; }
       if (p.kind === 'clock' && (!powered || LEVELS[level].id === 'mainframe-boot')) { p.phase = 0; p.high = false; }
+      if (p.kind === 'transistor') { p.transTimer = 0; if (!powered) p.conducting = false; }
+      if (p.kind === 'cannon') p.discharging = false;
+      if (p.kind === 'battery' && p.rogue && !powered) { p.reversed = false; showPolarity(p); }
     }
     updateCircuit(); beep();
   }; $('pliers').onclick = () => {
@@ -605,12 +901,17 @@ export function initWorkshop({ userId = null, accountProgress = null, cloudReady
     renderer.domElement.focus({ preventScroll: true });
   }; $('reset').onclick = () => { if (LEVELS[level].layout) { startLevel(level, true); saveState(); return; } lessonStep = 0; skipTeaching = false; wonThisVisit = false; resetParts(); boards[level] = { parts: [], wires: [] }; $('win').hidden = true; $('completion-status').textContent = ''; updateCircuit(); saveState(); }; $('rotate').onclick = rotateSelected; $('delete').onclick = removeSelected;
   $('reverse').onclick = () => { if (selected?.kind === 'battery' && reversible()) { selected.reversed = !selected.reversed; showPolarity(selected); updateCircuit(); saveState(); } };
-  $('toggle').onclick = () => { if (selected?.kind === 'switch') { toggleSwitch(selected); } };
-  $('gate-mode').onchange = e => { if (selected?.kind === 'gate') { selected.gateMode = e.target.value; selected.outputHigh = ['NAND', 'NOR', 'NOT'].includes(selected.gateMode); updateCircuit(); saveState(); } };
+  $('toggle').onclick = () => { if (selected?.kind === 'switch') toggleSwitch(selected); else if (selected?.kind === 'spdt') toggleSpdt(selected); };
+  $('gate-mode').onchange = e => { if (selected?.kind === 'gate') { selected.gateMode = e.target.value; selected.outputHigh = ['NAND', 'NOR', 'NOT'].includes(selected.gateMode); syncGatePins(selected); redrawWires(); updateCircuit(); saveState(); } };
   $('clock-rate').onchange = e => { if (selected?.kind === 'clock') { selected.clockHz = Number(e.target.value); updateCircuit(); saveState(); } };
   $('press-button').onclick = () => { if (selected?.kind === 'button') pulseButton(selected); };
   $('reset-latch').onclick = () => { if (selected?.kind === 'latch') { selected.bit = 0; updateCircuit(); saveState(); } };
   $('resistor-value').oninput = e => { if (selected?.kind === 'resistor') { selected.resistance = Number(e.target.value); $('resistor-output').textContent = selected.resistance + ' Ω'; updateCircuit(); saveState(); } };
+  $('pot-value').oninput = e => { if (selected?.kind === 'pot') { const pct = Number(e.target.value); selected.wiper = pct / 100; $('pot-output').textContent = pct + '%'; updateCircuit(); saveState(); } };
+  $('fuse-rating').onchange = e => { if (selected?.kind === 'fuse') { selected.fuseRating = Number(e.target.value); $('selection-name').textContent = `${partName('fuse')} · ${partSpec('fuse', selected)}`; updateCircuit(); saveState(); } };
+  $('replace-fuse').onclick = () => { if (selected?.kind === 'fuse') { selected.blown = false; select(selected); updateCircuit(); saveState(); beep(); } };
+  $('photo-lux').oninput = e => { if (selected?.kind === 'photo') { const lux = Number(e.target.value); selected.lux = lux; $('photo-lux-output').textContent = lux <= 25 ? 'Dark' : lux >= 75 ? 'Bright' : lux + '%'; updateCircuit(); saveState(); } };
+  $('servo-dial').oninput = e => { if (selected?.kind === 'servo') { const deg = Number(e.target.value); selected.dial = deg; $('servo-dial-output').textContent = deg + '°'; updateCircuit(); saveState(); } };
   $('next').onclick = () => { if (level < LEVELS.length - 1) startLevel(level + 1) }; $('sound').onclick = () => { sound = !sound; $('sound').setAttribute('aria-pressed', sound); $('sound').innerHTML = icon(sound ? 'sound' : 'mute'); $('sound').title = sound ? 'Mute sound' : 'Enable sound'; $('sound').setAttribute('aria-label', $('sound').title); beep(); }; $('short-mode').onclick = () => { explosiveShorts = !explosiveShorts; try { localStorage.setItem(shortModeKey, explosiveShorts ? 'explosive' : 'smoke'); } catch { } syncShortMode(); beep(); };
   listen(window, 'keydown', e => {
     if (e.key === 'Escape') { cancelWire(); if (pliersActive) setPliers(false); } if (!game || document.querySelector('dialog[open]') || ['INPUT', 'BUTTON', 'SELECT'].includes(document.activeElement.tagName)) return; if (pliersActive && document.activeElement === renderer.domElement) {
@@ -629,10 +930,28 @@ export function initWorkshop({ userId = null, accountProgress = null, cloudReady
   });
   function hero() { parts = [makePart({ id: 'hero1', kind: 'battery', x: -2.8, z: -.8 }), makePart({ id: 'hero2', kind: 'lamp', x: 1.2, z: -.8 }), makePart({ id: 'hero3', kind: 'switch', x: .1, z: 2, closed: true })]; wires = [{ a: 'hero1:0', b: 'hero2:0' }, { a: 'hero2:1', b: 'hero3:1' }, { a: 'hero3:0', b: 'hero1:1' }]; redrawWires(); powered = true; updateCircuit(); resetCamera(); }
   function resize() { const container = game ? $('viewport') : $('hero-scene'); const w = container.clientWidth, h = container.clientHeight; if (!w || !h) return; renderer.setSize(w, h); camera.aspect = w / h; camera.zoom = Math.min(1, Math.max(.4, camera.aspect / .95)); camera.updateProjectionMatrix(); } const observer = new ResizeObserver(resize); observer.observe(document.body); listen(window, 'resize', resize);
-  function updateProgress() { const row = $('progress'); row.replaceChildren(); const unit = LEVELS[level].unit; LEVELS.forEach((l, i) => { if (l.unit !== unit) return; const b = document.createElement('button'); b.className = 'progress-dot' + (i === level ? ' active' : '') + (completed.includes(i) ? ' done' : ''); b.disabled = !unlocked(i); b.title = l.title; b.setAttribute('aria-label', `${l.unit}: ${l.title}`); b.setAttribute('aria-current', i === level ? 'step' : 'false'); b.innerHTML = completed.includes(i) ? icon('check') : l.id === 'sandbox' ? '∞' : `${lessonNumber(l)}`; b.onclick = () => startLevel(i); row.append(b); }); }
+  function updateProgress() {
+    const row = $('progress');
+    row.replaceChildren();
+    const current = LEVELS[level], unit = current.unit;
+    row.classList.toggle('compact', unit === 'Library');
+    LEVELS.forEach((l, i) => {
+      if (l.unit !== unit) return;
+      if (unit === 'Library' && l.shelf !== current.shelf) return;
+      const b = document.createElement('button');
+      b.className = 'progress-dot' + (i === level ? ' active' : '') + (completed.includes(i) ? ' done' : '');
+      b.disabled = !unlocked(i);
+      b.title = l.title;
+      b.setAttribute('aria-label', `${l.unit}: ${l.title}`);
+      b.setAttribute('aria-current', i === level ? 'step' : 'false');
+      b.innerHTML = completed.includes(i) ? icon('check') : l.id === 'sandbox' ? '∞' : l.master ? l.code : `${lessonNumber(l)}`;
+      b.onclick = () => startLevel(i);
+      row.append(b);
+    });
+  }
 
   controls.addEventListener('end', saveState);
-  hero(); resize(); updateMainframeBadge(); if (cloudError) toast('Cloud storage unavailable. Saved on this device.');
+  hero(); resize(); updateMainframeBadge(); updateLibraryBadge(); updateMasterBadge(); if (cloudError) toast('Cloud storage unavailable. Saved on this device.');
   const requestedUnit = new URLSearchParams(window.location.search).get('unit')?.toLowerCase();
   const entry = LEVELS.findIndex(l => unitOf(l).theme && l.unit.toLowerCase() === requestedUnit);
   if (entry >= 0) startLevel(entry);
@@ -641,7 +960,7 @@ export function initWorkshop({ userId = null, accountProgress = null, cloudReady
     animateLiftedLeads(time);
     const elapsed = Math.min(.15, (time - lastFrame) / 1000); lastFrame = time;
     shortEffects.update(elapsed);
-    const ticking = simActive || LEVELS[level].machine || activity.running;
+    const ticking = simActive || LEVELS[level].machine || (LEVELS[level].master && ['mc-basketball', 'mc-basketball-raw', 'mc-flip-proof'].includes(LEVELS[level].id)) || activity.running;
     if (powered && ticking && time - lastTick >= 50) { const dt = Math.min(.2, (time - lastTick) / 1000); lastTick = time; updateCircuit(dt); }
     else if (!ticking || !powered) lastTick = time;
     for (const p of parts) if (deviceNames[p.kind]) updateDeviceVisual(p, circuitState, activity, powered, elapsed);
@@ -653,7 +972,7 @@ export function initWorkshop({ userId = null, accountProgress = null, cloudReady
         p.stallBase ??= p.rotor.rotation.z; p.rotor.rotation.z = p.stallBase + Math.sin(time * .06) * .024;
       } else if (p.stallBase != null) { p.rotor.rotation.z = p.stallBase; p.stallBase = null; }
     }
-    if (game && (LEVELS[level].machine || LEVELS[level].unit === 'Observatory') && fixture) fixture.update(activity, parts, circuitState, powered, mainframeProgress(completed, LEVELS));
+    if (game && (LEVELS[level].machine || LEVELS[level].unit === 'Observatory' || LEVELS[level].master) && fixture) fixture.update(activity, parts, circuitState, powered, mainframeProgress(completed, LEVELS));
     controls.update(); updateSurface(); ground.position.x = controls.target.x; ground.position.z = controls.target.z; sun.position.set(controls.target.x - 6, 14, controls.target.z + 8); sun.target.position.set(controls.target.x, 0, controls.target.z); for (const p of parts) for (let i = 0; i < p.rings.length; i++) { const active = game && (pending === p.id + ':' + i || hoverTerminal === p.id + ':' + i || !skipTeaching && level === 0 && lessonStep >= 3 && lessonStep <= 5); p.rings[i].material.opacity = active ? .7 + Math.sin(time * .006) * .3 : 0; } for (const wire of wireGroup.children) { const e = wire.userData.endpoints, current = powered && circuitState && e ? (circuitState.voltages[e.a] - circuitState.voltages[e.b]) / .01 : 0; wire.children.forEach((bead, i) => { bead.visible = powered && Math.abs(current) > .01; if (bead.visible) { const t = ((time * .00012 * Math.sign(current) + i / 3) % 1 + 1) % 1; bead.position.copy(wire.userData.curve.getPoint(t)); } }); } const shaking = shortEffects.getCameraOffset(shakeOffset); if (shaking) camera.position.add(shakeOffset); activeRoom?.draw(renderer, camera); renderer.render(scene, camera); if (shaking) camera.position.sub(shakeOffset); if (!readySent) { readySent = true; onReady?.(); }
   });
   return () => { saveState(); clearTimeout(cloudSaveTimer); if (cloudSavePending) void flushCloudSave(); events.abort(); observer.disconnect(); clearTimeout(toastTimer); clearTimeout(blastTimer); for (const t of buttonTimers.values()) clearTimeout(t); buttonTimers.clear(); shortEffects.dispose(); document.querySelectorAll('.drag-ghost').forEach(e => e.remove()); renderer.setAnimationLoop(null); controls.removeEventListener('end', saveState); controls.dispose(); fixture?.dispose(); readingRoom?.dispose(); for (const room of rooms.values()) room.dispose(); paintedTop.dispose(); paintedFrame.dispose(); const materials = new Set(), geometries = new Set(), textures = new Set(); scene.traverse(o => { if (o.geometry) geometries.add(o.geometry); if (o.material) for (const m of Array.isArray(o.material) ? o.material : [o.material]) { materials.add(m); for (const v of Object.values(m)) if (v?.isTexture) textures.add(v); } }); geometries.forEach(g => g.dispose()); textures.forEach(t => t.dispose()); materials.forEach(m => m.dispose()); sun.shadow.dispose(); renderer.dispose(); renderer.domElement.remove(); for (const e of document.querySelectorAll('#workshop button,#workshop input,#workshop select')) { e.onclick = null; e.oninput = null; e.onchange = null; } };

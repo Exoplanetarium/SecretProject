@@ -303,11 +303,124 @@ function bitReadout(part,g,paint,steel,rim){
  });
 }
 
+function diodeModule(part,g,paint,steel,rim){
+ const body=paint('#2c2825'),band=paint('#eae2cc'),jewel=paint('#7a5b32');
+ jewel.emissive.set('#ffc358');jewel.emissiveIntensity=0;
+ for(const x of [-.91,.91])box(g,rim,x,.44,0,.1,.36,.1);
+ const cyl=barrel(g,body,0,.62,0,.22,1.18);cyl.rotation.z=Math.PI/2;cyl.rotation.x=0;
+ const cathode=barrel(g,band,.36,.62,0,.232,.18);cathode.rotation.z=Math.PI/2;cathode.rotation.x=0;
+ mesh(g,new T.SphereGeometry(.09,14,10),jewel,0,.85,0).scale.y=.55;
+ part.diodeGlow=jewel;
+}
+
+function spdtSwitch(part,g,paint,steel,rim){
+ const brass=paint('#d3ab5d',.58);
+ box(g,steel,0,.38,0,1.45,.16,.70);
+ for(const x of [-.62,.62])box(g,brass,x,.54,0,.16,.24,.28);
+ const arm=group(g,0,.52,0);
+ const bar=box(arm,brass,-.26,.22,0,.68,.11,.13);
+ bar.rotation.z=-.52;
+ arm.rotation.y=part.throwB?Math.PI:0;
+ arm.userData.spdt=part;
+ bar.userData.spdt=part;
+ part.spdtLever=arm;
+}
+
+function potentiometer(part,g,paint,steel,rim){
+ const body=paint('#354049'),brass=paint('#c89d52',.6),ivory=paint('#f8edd1');
+ const mount=group(g,0,.82,-.34);mount.rotation.x=-.35;
+ barrel(mount,body,0,0,0,.62,.42);
+ barrel(mount,brass,0,0,.28,.40,.22);
+ const dial=group(mount,0,0,.40);
+ box(dial,ivory,0,.16,0,.07,.24,.04);
+ part.potKnob=dial;
+}
+
+function glassFuse(part,g,paint,steel,rim){
+ const brass=paint('#cfa356',.62),glass=new T.MeshStandardMaterial({color:'#dceced',roughness:.18,transparent:true,opacity:.55}),wire=paint('#e69b52');
+ wire.emissive.set('#ff8f32');wire.emissiveIntensity=0;
+ for(const x of [-.76,.76]){
+  box(g,brass,x,.46,0,.16,.38,.36);
+  const cap=barrel(g,rim,x*.82,.60,0,.17,.22);cap.rotation.z=Math.PI/2;cap.rotation.x=0;
+ }
+ const tubeMesh=barrel(g,glass,0,.60,0,.16,1.02);tubeMesh.rotation.z=Math.PI/2;tubeMesh.rotation.x=0;
+ tubeMesh.userData.ownedMaterial=true;
+ const filament=barrel(g,wire,0,.60,0,.028,.96);filament.rotation.z=Math.PI/2;filament.rotation.x=0;
+ part.fuseGlass=glass;
+ part.fuseWire=filament;
+ part.fuseWireMat=wire;
+}
+
+function voltMeter(part,g,paint,steel,rim){
+ const housing=paint('#5a3d28'),cream=paint('#f5ebd2'),needleMat=paint('#b64836');
+ const boxGrp=group(g,0,.92,-.86);boxGrp.rotation.x=-.34;
+ box(boxGrp,housing,0,0,0,2.08,1.22,.76);
+ box(boxGrp,cream,0,.06,.39,1.76,.86,.05);
+ for(let i=-3;i<=3;i++){
+  const a=i*.34;
+  spoke(boxGrp,steel,.46*Math.sin(a),-.10+.46*Math.cos(a),.43,.10,.03,-a);
+ }
+ const needle=group(boxGrp,0,-.14,.44);
+ spoke(needle,needleMat,0,.28,0,.56,.04,0);
+ part.meterNeedle=needle;
+ const canvas=makeCanvas(256,64);
+ if(canvas){
+  const ctx=canvas.getContext('2d'),tex=new T.CanvasTexture(canvas);
+  tex.colorSpace=T.SRGBColorSpace;
+  drawPlate(ctx,256,64,'#efe2c0','#4f3924','0.0 V','bold 42px monospace');
+  const screen=mesh(boxGrp,new T.PlaneGeometry(1.48,.34),new T.MeshBasicMaterial({map:tex}),0,-.30,.43);
+  screen.userData.ownedMaterial=true;
+  part.meterCanvas=canvas;part.meterCtx=ctx;part.meterTex=tex;part.shownMeter='';
+ }
+}
+
+function npnTransistor(part,g,paint,steel,rim){
+ const brass=paint('#c89d54',.58),body=paint('#2a2f38'),copper=paint('#bd6d3c',.5),jewel=paint('#7a5730');
+ jewel.emissive.set('#ffb847');jewel.emissiveIntensity=0;
+ box(g,brass,0,1.02,-.84,1.32,.66,.22);
+ for(const x of [-.48,-.24,0,.24,.48])box(g,brass,x,1.02,-1.04,.10,.66,.22);
+ box(g,body,0,.86,-.64,.96,.68,.32);
+ mesh(g,new T.SphereGeometry(.12,14,10),jewel,0,.92,-.46).scale.z=.5;
+ for(const [lx,tx] of [[-.26,-.87],[0,0],[.26,.87]]){
+  tube(g,copper,[[lx,.54,-.62],[lx*.9,.44,-.18],[tx,.34,.55]],.038);
+ }
+ part.transJewel=jewel;
+}
+
+function ballCannon(part,g,paint,steel,rim){
+ const copper=paint('#c88246',.62),iron=paint('#29252a',.35),brass=paint('#d8b062',.6),jewel=paint('#8a5c28');
+ jewel.emissive.set('#ff9d3b');jewel.emissiveIntensity=0;
+ box(g,iron,0,.52,-.78,1.52,.42,.92);
+ for(const x of [-.56,.56])box(g,copper,x,.88,-.82,.16,.58,.48);
+ const barrelGrp=group(g,0,1.02,-.84);
+ barrelGrp.rotation.z=-.52;
+ const tubeMesh=mesh(barrelGrp,new T.CylinderGeometry(.24,.28,1.12,24),brass,.18,.12,0);
+ tubeMesh.rotation.z=-Math.PI/2;
+ const muzzle=mesh(barrelGrp,new T.TorusGeometry(.25,.055,10,24),copper,.72,.12,0);
+ muzzle.rotation.y=Math.PI/2;
+ mesh(barrelGrp,new T.SphereGeometry(.16,12,10),jewel,-.36,.12,0);
+ const plateMat=new T.MeshBasicMaterial({color:'#efe2c0'});
+ const plate=makeCanvas(256,64);
+ if(plate){
+  const ctx=plate.getContext('2d');
+  drawPlate(ctx,256,64,'#1b181d','#f4cf88','0.0 V','bold 42px monospace');
+  const tex=new T.CanvasTexture(plate);tex.colorSpace=T.SRGBColorSpace;
+  plateMat.map=tex;plateMat.needsUpdate=true;
+  part.cannonCtx=ctx;part.cannonTex=tex;
+ }
+ g.userData.instrumentMaterials=undefined;
+ box(g,iron,0,.50,-.28,1.14,.32,.08);
+ const screen=mesh(g,new T.PlaneGeometry(1.02,.25),plateMat,0,.50,-.23);
+ screen.userData.ownedMaterial=true;
+ part.cannonJewel=jewel;
+}
+
 export const themeColors={
  radio:{top:'#78a99c',edge:'#264d4c',accent:'#eca85d',sky:'#cadaac'},
  theater:{top:'#564665',edge:'#272339',accent:'#e297e3',sky:'#463958'},
  factory:{top:'#738490',edge:'#2a3944',accent:'#e97930',sky:'#a9b9bb'},
- observatory:{top:'#3c4d63',edge:'#1f293a',accent:'#e5b869',sky:'#182133'}
+ observatory:{top:'#3c4d63',edge:'#1f293a',accent:'#e5b869',sky:'#182133'},
+ proving:{top:'#3c3633',edge:'#1c191d',accent:'#d88c4a',sky:'#161419'}
 };
 export function unitRoom(theme){
  const colors=themeColors[theme],room=new T.Scene();
@@ -357,6 +470,27 @@ export function unitRoom(theme){
    box(room,ink,x,1,-27,4.5,14,4);
    box(room,brass,x,8.2,-27,4.7,.25,4.2);
    for(let r=0;r<4;r++)box(room,accent,x-1.2+r*.8,5-r*1.5,-24.9,.45,.25,.12);
+  }
+ }else if(theme==='proving'){
+  const slate=finish('#242024',.28),copper=finish('#c88044',.62),glow=new T.MeshBasicMaterial({color:'#ffcf82',transparent:true,opacity:.14,depthWrite:false});
+  for(const x of [-18,0,18]){
+   box(room,slate,x,5,-31.8,11,14,.6);
+   box(room,copper,x,12.2,-31.4,11.6,.45,.75);
+   box(room,copper,x-5.4,5,-31.4,.45,14,.75);
+   box(room,copper,x+5.4,5,-31.4,.45,14,.75);
+   box(room,panel,x,5,-32.2,9.2,12.2,.25);
+  }
+  box(room,copper,0,11.2,-19,64,.55,.8);
+  for(const x of [-15,0,15]){
+   box(room,steel,x,10.6,-19,1.2,.8,1.2);
+   const hood=mesh(room,new T.CylinderGeometry(.55,.95,1.1,16),copper,x,9.7,-19);
+   hood.castShadow=false;
+   const beam=mesh(room,new T.CylinderGeometry(.8,4.6,10.5,18,1,true),glow,x,4.1,-19);
+   beam.castShadow=false;
+  }
+  for(const x of [-25,25]){
+   box(room,slate,x,1,-24,3.8,18,3.8);
+   box(room,copper,x,10.2,-24,4.2,.35,4.2);
   }
  }else{
   box(room,ink,0,2,-27,49,15,1);
@@ -431,6 +565,13 @@ export function makeUnitPart(part,g){
  else if(part.kind==='latch')memoryLatch(part,g,paint,steel,rim);
  else if(part.kind==='clock')pulseClock(part,g,paint,steel,rim);
  else if(part.kind==='display')bitReadout(part,g,paint,steel,rim);
+ else if(part.kind==='diode')diodeModule(part,g,paint,steel,rim);
+ else if(part.kind==='spdt')spdtSwitch(part,g,paint,steel,rim);
+ else if(part.kind==='pot')potentiometer(part,g,paint,steel,rim);
+ else if(part.kind==='fuse')glassFuse(part,g,paint,steel,rim);
+ else if(part.kind==='meter')voltMeter(part,g,paint,steel,rim);
+ else if(part.kind==='transistor')npnTransistor(part,g,paint,steel,rim);
+ else if(part.kind==='cannon')ballCannon(part,g,paint,steel,rim);
  g.userData.instrumentMaterials=mats;
 }
 
@@ -456,8 +597,16 @@ export function updateDeviceVisual(part,state,activity,powered,elapsed=0){
   part.outputGear.rotation.z-=speed*elapsed;
   part.pinion.rotation.z+=speed*elapsed*2;
  }else if(part.servoHorn){
-  part.servoHorn.rotation.y=-T.MathUtils.degToRad(activity.gate||0);
-  part.dialMark.rotation.z=-T.MathUtils.degToRad(activity.dial||0);
+  if(part.dial!==undefined){
+   const v=powered?Math.abs((state.voltages?.[part.id+':0']||0)-(state.voltages?.[part.id+':1']||0)):0;
+   const deg=v>3?part.dial:(part.heldDeg??0);
+   part.heldDeg=deg;
+   part.servoHorn.rotation.y=-T.MathUtils.degToRad(deg);
+   part.dialMark.rotation.z=-T.MathUtils.degToRad(part.dial||0);
+  }else{
+   part.servoHorn.rotation.y=-T.MathUtils.degToRad(activity.gate||0);
+   part.dialMark.rotation.z=-T.MathUtils.degToRad(activity.dial||0);
+  }
  }else if(part.hammer){
   const voltage=powered?(state.voltages[part.id+':0']||0)-(state.voltages[part.id+':1']||0):0;
   if(voltage>=3&&!part.wasRinging)part.strikeTime=.44;
@@ -492,6 +641,44 @@ export function updateDeviceVisual(part,state,activity,powered,elapsed=0){
    part.shownValue=val;part.shownOn=powered;
    drawPlate(part.displayCtx,256,128,'#131922',powered?'#ffca67':'#49525e',powered?String(val):'-','bold 82px monospace');
    part.displayTex.needsUpdate=true;
+  }
+ }else if(part.diodeGlow){
+  const amps=powered?(state.currents[part.id]||0):0;
+  part.diodeGlow.emissiveIntensity=amps>.01?Math.min(2.8,amps*8):0;
+ }else if(part.spdtLever){
+  part.spdtLever.rotation.y=part.throwB?Math.PI:0;
+ }else if(part.potKnob){
+  const t=Math.max(0,Math.min(1,part.wiper??.5));
+  part.potKnob.rotation.z=(.5-t)*Math.PI*1.5;
+ }else if(part.fuseWire){
+  const blown=!!part.blown;
+  part.fuseWire.visible=!blown;
+  const load=powered&&!blown?Math.abs(state.currents[part.id]||0)/(part.fuseRating||.35):0;
+  part.fuseWireMat.emissiveIntensity=load>.6?Math.min(2.5,(load-.6)*4):0;
+  part.fuseGlass.color.set(blown?'#4e4945':'#dceced');
+  part.fuseGlass.opacity=blown?.75:.55;
+ }else if(part.meterNeedle){
+  const v=powered?(state.meterVoltages?.[part.id]??((state.voltages?.[part.id+':0']||0)-(state.voltages?.[part.id+':1']||0))):0;
+  const clamped=T.MathUtils.clamp(v/6,-1,1);
+  part.meterNeedle.rotation.z=-clamped*1.05;
+  const txt=(v>=.05?'+':v<=-.05?'':'')+v.toFixed(1)+' V';
+  if(part.meterCtx&&part.shownMeter!==txt){
+   part.shownMeter=txt;
+   drawPlate(part.meterCtx,256,64,'#efe2c0','#4f3924',txt,'bold 42px monospace');
+   part.meterTex.needsUpdate=true;
+  }
+ }else if(part.transJewel){
+  part.transJewel.emissiveIntensity=powered&&part.conducting?2.6:0;
+ }else if(part.cannonJewel){
+  const v=powered?Math.abs((state.voltages?.[part.id+':0']||0)-(state.voltages?.[part.id+':1']||0)):0;
+  const sweet=v>=3.8&&v<=4.7;
+  part.cannonJewel.emissive.set(part.discharging?'#fff0b5':sweet?'#57d176':'#ff9d3b');
+  part.cannonJewel.emissiveIntensity=part.discharging?4.2:powered?Math.min(2.6,v/2.4):0;
+  const txt=powered?v.toFixed(1)+' V':'0.0 V';
+  if(part.cannonCtx&&part.shownCannon!==txt){
+   part.shownCannon=txt;
+   drawPlate(part.cannonCtx,256,64,'#1b181d',sweet&&powered?'#93f2a8':'#f4cf88',txt,'bold 42px monospace');
+   part.cannonTex.needsUpdate=true;
   }
  }
 }

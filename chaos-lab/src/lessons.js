@@ -16,6 +16,54 @@ const guidedSteps=[
  []
 ];
 const stepsById=new Map(existingLevels.map((l,i)=>[l.id,guidedSteps[i]]));
+const observatoryGuides={
+ 'relay-inverter':[
+  step('Electromagnetic switch','A coil relay is two circuits in one box. Current through A and B pulls C away from NC and onto NO. Click ? on any part card to inspect its terminals.','[data-kind="coil"]'),
+  step('Wire the inverter','Connect the battery and switch to coil A and B, then route the lamp through C and NC. Power on and flip the switch to invert the light.','#viewport')
+ ],
+ 'relay-nand':[
+  step('Series coil control','If two switches sit in series feeding coil A and B, the coil only pulls when both switches are closed. Use ? on Coil relay if you want a refresher.','[data-kind="coil"]'),
+  step('Test all 4 input states','Route the lamp through C and NC so it stays lit until both A and B are closed. Flip A and B through all four pairs.','#viewport')
+ ],
+ 'relay-clock':[
+  step('Self-interrupting relay','Feeding coil A through its own NC contact turns power off as soon as the coil pulls in, then back on when it drops.','#goal-picture'),
+  step('Wire the buzzer loop','Connect battery + to C, NC to coil A, and coil B to battery −. Put the lamp across A and B, and optionally wire the capacitor in parallel for a slower beat.','#viewport')
+ ],
+ 'relay-latch':[
+  step('Self-holding loop','A momentary push button opens when released. Connecting C and NO in parallel with the Set button keeps coil A energized after release.','[data-kind="button"]'),
+  step('Latch and clear','Close Reset, press Set so NO holds the coil, then open Reset to clear the stored bit.','#viewport')
+ ],
+ 'half-adder':[
+  step('Multi-pin logic gates','Every logic gate needs its − pin joined to battery − via the bus bar. Select a placed gate to pick XOR, AND, OR, NOR, NAND, or NOT.','[data-kind="gate"]'),
+  step('Wire Sum and Carry','Send switches A and B into both gates: XOR drives Sum and AND drives Carry. Test all four combinations.','#viewport')
+ ],
+ 'mainframe-boot':[
+  step('Two-bit ripple counter','Each memory cell copies D to Q when CK rises from 0 V to 6 V. Feeding Q back through a NOT gate makes a cell toggle on every pulse.','[data-kind="latch"]'),
+  step('Chain two bits to readout','Clock Bit 1 from the pulse clock and clock Bit 2 from Bit 1 NOT output. Connect Q1 and Q2 to readout pins 1 and 2 to count 0, 1, 2, 3.','#viewport')
+ ]
+};
+const libraryGuides={
+ 'lib-button':[step('Momentary contact','A push button conducts only while held down. Click ? on the Push button card to see its diagram and terminals.','[data-kind="button"]'),step('Wire and press','Wire battery, push button, and lamp in one loop, power on, then click the button and release it.','#viewport')],
+ 'lib-spdt':[step('Two-way path','A 2-way switch connects common C to either A or B. Click ? on its card to check the terminal order.','[data-kind="spdt"]'),step('Switch between lamps','Feed battery + into C, wire A and B to two lamps, then click the lever to toggle between them.','#viewport')],
+ 'lib-rail':[step('Shared bus bar','All four terminals on a bus bar connect internally. Use it when many branches share + or −.','[data-kind="rail"]'),step('Power three lamps','Feed battery + into the bus bar and wire all three lamps from it back to −.','#viewport')],
+ 'lib-fuse':[step('Overload protection','A glass fuse breaks the loop if current stays above its 0.35 A rating.','[data-kind="fuse"]'),step('Test safe then overload','Power Lamp 1 safely through the fuse, then add Lamp 2 in parallel and close the switch to blow the fuse.','#viewport')],
+ 'lib-diode':[step('One-way valve','Current flows through a diode only from Anode (A) to Cathode (K).','[data-kind="diode"]'),step('Check both polarities','Wire battery + to A and lamp to K, power on, then select the battery and click Reverse polarity.','#viewport')],
+ 'lib-pot':[step('Adjustable track','A potentiometer is a 100 Ω track between 1 and 2 with a movable wiper W.','[data-kind="pot"]'),step('Sweep brightness','Wire 1 and W in series with the lamp, power on, select the potentiometer, and turn its Dial slider from dim to bright.','#viewport')],
+ 'lib-meter':[step('Parallel probe','A voltmeter measures voltage across its + and − leads without drawing current.','[data-kind="meter"]'),step('Measure 6 V and 3 V','Power on, touch + and − across the battery for 6.0 V, then move both wires across one series lamp for 3.0 V.','#viewport')],
+ 'lib-rgb':[step('Three color channels','Each color pin (R, G, B) drives an LED sharing the common − return.','[data-kind="rgb"]'),step('Mix yellow','Wire both R and G to battery + (with − wired to battery −) to light yellow.','#viewport')],
+ 'lib-bell':[step('Voltage threshold','The threshold bell rings when at least 3 V appears across + and −.','[data-kind="bell"]'),step('Ring the gong','Wire battery, switch, and bell in one loop, power on, and close the switch.','#viewport')],
+ 'lib-gear':[step('High-torque drive','The geared drive reduces speed for higher turning force.','[data-kind="gear"]'),step('Drive both ways','Wire + and − to the battery, run forward, then reverse battery polarity.','#viewport')],
+ 'lib-servo':[step('Powered angle hold','The servo holds its horn at the dialed angle whenever its terminals receive over 3 V.','[data-kind="servo"]'),step('Sweep the horn','Wire + and − to the battery, select the servo, and move Angle past +30° and −30°.','#viewport')],
+ 'lib-photo':[step('Light-sensitive resistor','Resistance falls to 600 Ω in bright light and climbs to 10,000 Ω in the dark.','[data-kind="photo"]'),step('Fade the LED','Wire the photoresistor in series with the LED, then select the photoresistor and lower Light.','#viewport')],
+ 'lib-relay':[step('Darkness trigger','The sensor switch monitors a photoresistor on L1 and L2 and closes C to NO when resistance passes 5,000 Ω.','[data-kind="relay"]'),step('Trigger the lamp','Connect the photoresistor to L1 and L2, wire the lamp through C and NO, then dim Light on the photoresistor.','#viewport')],
+ 'lib-transistor':[step('Electronic switch','Small current into Base (B) toward Emitter (E) switches larger current from Collector (C) to Emitter (E).','[data-kind="transistor"]'),step('Switch the load','Wire E to −, the lamp between + and C, and the switch + 100 Ω resistor to B, then flip the switch.','#viewport')],
+ 'lib-coil':[step('Double-throw relay','Energizing coil A and B moves common C from NC to NO.','[data-kind="coil"]'),step('Swap NC and NO lamps','Power A and B through the switch, feed C from battery +, and wire one lamp to NC and one to NO.','#viewport')],
+ 'lib-gate':[step('Logic output stage','Connect − to battery − so the gate can read inputs A and B and drive output Q.','[data-kind="gate"]'),step('Test the AND gate','Wire switches A and B into A and B and Q into the lamp, then toggle both switches closed.','#viewport')],
+ 'lib-clock':[step('Built-in pulse source','The pulse clock alternates between 6 V and 0 V across + and − on its own.','[data-kind="clock"]'),step('Blink the lamp','Wire clock + and − to the lamp and turn on power for three pulses.','#viewport')],
+ 'lib-latch':[step('Store one bit','The memory cell copies D to Q when CK rises from low to high.','[data-kind="latch"]'),step('Capture and hold','Wire Data to D, Clock to CK, Q to the lamp, and − to ground. Close Data, press Clock, then open Data.','#viewport')],
+ 'lib-display':[step('Binary readout','Inputs 1, 2, 4, and 8 add together when wired high (≥ 3 V).','[data-kind="display"]'),step('Show 5 and 10','Wire the four switches to 1, 2, 4, and 8, then close 1 + 4 for 5 and 2 + 8 for 10.','#viewport')]
+};
+for(const [id,steps] of Object.entries({...observatoryGuides,...libraryGuides}))stepsById.set(id,steps);
 export const LESSONS=LEVELS.map(l=>stepsById.get(l.id)??[step(l.title,l.goal,'#challenge-target','unit-goal')]);
 export function stepSatisfied(when,{parts,wires,pending,powered,state}){
  const has=kind=>parts.some(p=>p.kind===kind);
@@ -70,7 +118,7 @@ export function encodeProgress(completed,boards){
 export function canAccessLevel(index,completed,signedIn=false){
  const lesson=LEVELS[index];
  if(!lesson)return false;
- if(signedIn||completed.includes(index)||lesson.id==='sandbox')return true;
+ if(signedIn||lesson.library||lesson.master||completed.includes(index)||lesson.id==='sandbox')return true;
  const unitLessons=LEVELS.filter(other=>other.unit===lesson.unit);
  const prerequisites=unitLessons.slice(0,unitLessons.indexOf(lesson));
  if(lesson.unit==='Resistors')prerequisites.push(...LEVELS.filter(other=>other.unit==='Unit 0'&&!other.challenge));

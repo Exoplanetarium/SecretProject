@@ -18,7 +18,7 @@ function bench(id,kinds,wires){
  return {part,run,flip,trial,wires};
 }
 test('each teaching unit has one final challenge; activity finals use their fixture bench',()=>{
- for(const unit of new Set(LEVELS.filter(l=>l.id!=='sandbox').map(l=>l.unit))){
+ for(const unit of new Set(LEVELS.filter(l=>l.id!=='sandbox'&&!l.library&&!l.master).map(l=>l.unit))){
   const levels=LEVELS.filter(l=>l.unit===unit);assert.ok(levels.at(-1).challenge);assert.equal(levels.filter(l=>l.challenge).length,1);
  }
  assert.ok(LEVELS.every(l=>typeof l.check==='function'));

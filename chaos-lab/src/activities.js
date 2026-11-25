@@ -1,6 +1,8 @@
 import {OBSERVATORY_DEVICE_NAMES,OBSERVATORY_PINS,observatoryActivities,measureObservatory} from './observatory.js';
-export const deviceNames={photo:'Photoresistor',rgb:'RGB light',bell:'Threshold bell',gear:'Geared drive',servo:'Servo + controller',jack:'Test socket',relay:'Sensor switch',...OBSERVATORY_DEVICE_NAMES};
-export const pins={rgb:['R','G','B','−'],relay:['L1','L2','C','NO'],servo:['+','−'],gear:['+','−'],bell:['+','−'],jack:['1','2'],...OBSERVATORY_PINS};
+import {libraryActivities,measureLibrary} from './library.js';
+import {MASTER_DEVICE_NAMES,MASTER_PINS,masterActivities,measureMaster} from './master.js';
+export const deviceNames={photo:'Photoresistor',rgb:'RGB light',bell:'Threshold bell',gear:'Geared drive',servo:'Servo + controller',jack:'Test socket',relay:'Sensor switch',diode:'Diode',spdt:'2-way switch',pot:'Potentiometer',fuse:'Glass fuse',meter:'Voltmeter',transistor:'NPN transistor',...OBSERVATORY_DEVICE_NAMES,...MASTER_DEVICE_NAMES};
+export const pins={rgb:['R','G','B','−'],relay:['L1','L2','C','NO'],servo:['+','−'],gear:['+','−'],bell:['+','−'],jack:['1','2'],diode:['A','K'],spdt:['C','A','B'],pot:['1','W','2'],meter:['+','−'],transistor:['C','B','E'],...OBSERVATORY_PINS,...MASTER_PINS};
 export const channelDrops=[2,3.15,3.25];
 export const capacity=p=>[.01,.1,.22].includes(p.capacitance)?p.capacitance:.1;
 export function photoOhms(x,shadow,z=0){return Math.round(600+9400*Math.exp(-((x-shadow)**2+z*z)/3));}
@@ -35,7 +37,9 @@ export const activities=[
  activity('loaded-drive','Motors','Geared drive','Try the direct drive on the loaded incline, then move the supply leads to the geared drive. Deliver the crate.','The direct drive stalls under this load. The reduction gearbox trades speed for turning force.',fixture([device('battery',-5,4),device('motor',1.5,4.5),device('gear',5.5,-2.5)],leads('1.0-2.0','2.1-1.1')),['battery','motor','gear'],{machine:true,ending:'The geared output delivered enough turning force to climb with the load.'}),
  activity('servo-gate','Motors','Servo sorting gate','Power the servo controller. Move its dial to aim the gate at each chute.','Connect + and −, then use the Gate angle dial. The controller supplies the servo position signal.',fixture([battery,device('servo',3,2)],leads('1.0-2.0','2.1-1.1')),['battery','servo'],{machine:true,ending:'The controller commanded an angle and the servo held the gate there.'}),
  activity('dispatch','Motors','Dispatch line','Deliver a loaded crate to the requested bin. Choose a drive and set the powered gate.','Wire the geared drive and servo controller across the battery. Aim the gate and send a crate. A second order can use the optical sensor to light an arrival signal.',fixture([device('battery',-5,4),device('motor',1,4.5),device('gear',5,-2.5),device('servo',8.5,2.5)],leads('1.0-2.0','2.1-1.1')),['battery','motor','gear','servo','switch','photo','relay','led'],{machine:true,challenge:true,target:'Deliver to the right bin',ending:'The drive carried the load and the servo routed it. Try the sensor order to signal the next arrival.'}),
- ...observatoryActivities
+ ...observatoryActivities,
+ ...libraryActivities,
+ ...masterActivities
 ];
 export function freshActivity(){
  const cables=['Forward','Reverse','Dead'];
@@ -46,11 +50,13 @@ export function freshActivity(){
 export function socketMode(a){return a.socket==='Known +'?'Forward':a.socket==='Known −'?'Reverse':a.cables[['Cable A','Cable B','Cable C'].indexOf(a.socket)];}
 export function conditions(parts,a,id){
  const light={};
- for(const p of parts)if(p.kind==='photo')light[p.id]=id==='dispatch'?(a.position>=.73&&a.position<=.92?10000:600):photoOhms(p.x,a.shadow,p.z);
+ for(const p of parts)if(p.kind==='photo')light[p.id]=id==='dispatch'?(a.position>=.73&&a.position<=.92?10000:600):id==='light-meter'?photoOhms(p.x,a.shadow,p.z):Math.round(10000-Math.max(0,Math.min(100,p.lux??100))/100*9400);
  return {light,socket:socketMode(a)};
 }
 export function measureActivity(lesson,parts,wires,s,a,on,dt){
  if(lesson.unit==='Observatory')return measureObservatory(lesson,parts,wires,s,a,on,dt);
+ if(lesson.library)return measureLibrary(lesson,parts,wires,s,a,on,dt);
+ if(lesson.master)return measureMaster(lesson,parts,wires,s,a,on,dt);
  const id=lesson.id,kind=k=>parts.filter(p=>p.kind===k),amp=p=>on&&p?Math.abs(s.currents[p.id]||0):0;
  const voltage=p=>on&&p?(s.voltages[p.id+':0']||0)-(s.voltages[p.id+':1']||0):0;
  const leds=kind('led'),lit=leds.filter(p=>amp(p)>.002),caps=kind('capacitor'),lamps=kind('lamp');

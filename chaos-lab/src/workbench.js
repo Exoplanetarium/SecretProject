@@ -17,7 +17,14 @@ const instruments={
  gate:{side:1.2,back:1.5,front:.85},
  latch:{side:1.2,back:1.5,front:.85},
  clock:{side:1.25,back:1.65,front:.85},
- display:{side:1.35,back:1.85,front:.85}
+ display:{side:1.35,back:1.85,front:.85},
+ diode:{side:1.2,back:1.05,front:.85},
+ spdt:{side:1.2,back:1.15,front:.85},
+ pot:{side:1.2,back:1.35,front:.85},
+ fuse:{side:1.2,back:1.1,front:.85},
+ meter:{side:1.25,back:1.65,front:.85},
+ transistor:{side:1.2,back:1.45,front:.85},
+ cannon:{side:1.35,back:1.75,front:.85}
 };
 function bounds(kind,household){if(instruments[kind])return instruments[kind];return household&&kind==='lamp'?tableLampBounds:moduleBounds;}
 export function rotatedBounds(kind,household=false,rotation=0){

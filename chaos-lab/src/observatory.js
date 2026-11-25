@@ -1,3 +1,5 @@
+import { LIBRARY_UNLOCKS } from './library.js';
+
 export const OBSERVATORY_DEVICE_NAMES = {
   coil: 'Coil relay',
   button: 'Push button',
@@ -20,7 +22,7 @@ export const OBSERVATORY_PINS = {
 export const FREE_BUILD_BASE_PARTS = ['battery', 'lamp', 'switch', 'resistor', 'capacitor', 'led', 'motor'];
 export const FREE_BUILD_PARTS = [
   ...FREE_BUILD_BASE_PARTS,
-  'coil', 'rail', 'button', 'gate', 'clock', 'latch', 'display'
+  ...LIBRARY_UNLOCKS.map(u => u.kind)
 ];
 
 export const TOOLBELT_UNLOCKS = [
@@ -162,14 +164,14 @@ export const observatoryActivities = [
     'Select each logic gate to set its mode: XOR drives Sum and AND drives Carry. Join every − pin to the bus bar.',
     fix(
       [
-        dev('battery', -9, 2),
-        dev('switch', -6, 4, { role: 'Bit A' }),
-        dev('switch', -6, -1, { role: 'Bit B' }),
-        dev('gate', 0, 3, { gateMode: 'XOR', outputHigh: false }),
-        dev('gate', 0, -2, { gateMode: 'AND', outputHigh: false }),
-        dev('lamp', 6, 3, { role: 'Sum' }),
-        dev('lamp', 6, -2, { role: 'Carry' }),
-        dev('rail', -2, -5)
+        dev('battery', -9, 1),
+        dev('switch', -6, -2, { role: 'Bit A' }),
+        dev('switch', -6, 3, { role: 'Bit B' }),
+        dev('gate', 0, -2, { gateMode: 'XOR', outputHigh: false }),
+        dev('gate', 0, 3, { gateMode: 'AND', outputHigh: false }),
+        dev('lamp', 6, -2, { role: 'Sum' }),
+        dev('lamp', 6, 3, { role: 'Carry' }),
+        dev('rail', -2, 6.5)
       ],
       leads('1.1-8.0', '4.3-8.1', '5.3-8.2')
     ),
@@ -246,8 +248,8 @@ export function measureObservatory(lesson, parts, wires, s, a, on, dt = 0) {
     const count = (obs.seenOpen ? 1 : 0) + (obs.seenClosed ? 1 : 0);
     reading = 'Switch ' + (sw?.closed ? 'closed' : 'open') + ' · Lamp ' + (lampOn ? 'on' : 'off') + ' · States ' + count + ' / 2';
   } else if (id === 'relay-nand') {
-    const swA = switches.find(p => p.role === 'Input A') || switches[0];
-    const swB = switches.find(p => p.role === 'Input B') || switches[1];
+    const swA = switches.find(p => p.role === 'Input A') || switches.find(p => p.role !== 'Input B') || switches[0];
+    const swB = switches.find(p => p.role === 'Input B' && p !== swA) || switches.find(p => p !== swA);
     const lamp = lamps[0];
     const aOn = !!swA?.closed;
     const bOn = !!swB?.closed;
@@ -317,23 +319,37 @@ export function measureObservatory(lesson, parts, wires, s, a, on, dt = 0) {
     ];
     reading = labels[obs.stage] || labels[0];
   } else if (id === 'half-adder') {
-    const swA = switches.find(p => p.role === 'Bit A') || switches[0];
-    const swB = switches.find(p => p.role === 'Bit B') || switches[1];
-    const sumLamp = lamps.find(p => p.role === 'Sum') || lamps[0];
-    const carryLamp = lamps.find(p => p.role === 'Carry') || lamps[1];
+    const swA = switches.find(p => p.role === 'Bit A') || switches.find(p => p.role !== 'Bit B') || switches[0];
+    const swB = switches.find(p => p.role === 'Bit B' && p !== swA) || switches.find(p => p !== swA);
+    const sumLamp = lamps.find(p => p.role === 'Sum') || lamps.find(p => p.role !== 'Carry') || lamps[0];
+    const carryLamp = lamps.find(p => p.role === 'Carry' && p !== sumLamp) || lamps.find(p => p !== sumLamp);
     const aBit = swA?.closed ? 1 : 0;
     const bBit = swB?.closed ? 1 : 0;
     const sumOn = lit(sumLamp);
     const carryOn = lit(carryLamp);
+    let swappedHint = false;
     if (on && !s.short && swA && swB && sumLamp && carryLamp && kind('gate').length >= 1 && settled) {
       const expSum = (aBit ^ bBit) === 1;
       const expCarry = (aBit & bBit) === 1;
+      const code = '' + aBit + bBit;
       if (sumOn === expSum && carryOn === expCarry) {
-        obs.cases.add('' + aBit + bBit);
+        obs.cases.add(code);
         if (obs.cases.size === 4) a.passed = true;
+      } else if (sumOn === expCarry && carryOn === expSum) {
+        if (!sumLamp.role && !carryLamp.role) {
+          obs.swappedCases ??= new Set();
+          obs.swappedCases.add(code);
+          if (obs.swappedCases.size === 4) a.passed = true;
+        } else {
+          swappedHint = true;
+        }
       }
     }
-    reading = 'A ' + aBit + ' + B ' + bBit + ' = ' + (carryOn ? 1 : 0) + (sumOn ? 1 : 0) + ' · Cases ' + obs.cases.size + ' / 4';
+    const doneCases = (!sumLamp?.role && !carryLamp?.role && (obs.swappedCases?.size || 0) > obs.cases.size)
+      ? obs.swappedCases
+      : obs.cases;
+    const marks = ['00', '01', '10', '11'].map(c => c + (doneCases.has(c) ? '✓' : '○')).join(' ');
+    reading = 'A ' + aBit + ' + B ' + bBit + ' = ' + (carryOn ? 1 : 0) + (sumOn ? 1 : 0) + ' · ' + marks + (swappedHint ? ' · Swap Sum & Carry' : '');
   } else if (id === 'mainframe-boot') {
     const latches = kind('latch');
     const disp = kind('display')[0];
@@ -368,13 +384,11 @@ export function measureObservatory(lesson, parts, wires, s, a, on, dt = 0) {
 
 export function unlockedToolbelt(completed, levels, signedIn = false) {
   const unlocked = new Set(FREE_BUILD_BASE_PARTS);
-  if (signedIn) {
-    for (const kind of FREE_BUILD_PARTS) unlocked.add(kind);
-    return unlocked;
-  }
   const doneIds = new Set(completed.map(i => levels[i]?.id).filter(Boolean));
-  for (const item of TOOLBELT_UNLOCKS) {
-    if (doneIds.has(item.byLevel)) unlocked.add(item.kind);
+  for (const item of LIBRARY_UNLOCKS) {
+    if (doneIds.has(item.challengeId) || item.altLevels?.some(id => doneIds.has(id))) {
+      unlocked.add(item.kind);
+    }
   }
   return unlocked;
 }
@@ -454,30 +468,40 @@ export function mainframeBlueprintSvg(progress) {
   </svg>`;
 }
 
-const pLabel = (x, y, text) => `<text x="${x}" y="${y}" text-anchor="middle">${text}</text>`;
+const obsLbl = (x, y, text, cls = 'obs-lbl') => `<text class="${cls}" x="${x}" y="${y}" text-anchor="middle">${text}</text>`;
+const obsDot = (cx, cy) => `<circle class="obs-dot" cx="${cx}" cy="${cy}" r="2.1"/>`;
+const obsBattery = (x = 20, topY = 14, botY = 88) =>
+  `<path d="M${x} ${topY}V45M${x - 9} 45h18M${x - 5} 53h10M${x} 53V${botY}"/>${obsLbl(x + 11, 40, '+')}${obsLbl(x + 11, 64, '−')}`;
+const obsCoil = (x, yTop) =>
+  `<path d="M${x} ${yTop}c7 0 7 10 0 10c7 0 7 10 0 10c7 0 7 10 0 10"/>`;
+const obsLamp = (cx, cy, r = 10) => {
+  const k = Math.round(r * 0.6);
+  return `<circle class="diagram-lamp" cx="${cx}" cy="${cy}" r="${r}"/><path d="m${cx - k} ${cy - k} ${k * 2} ${k * 2}m-${k * 2} 0 ${k * 2}-${k * 2}"/>`;
+};
+
 export const observatorySketches = {
   'relay-inverter': [
-    'Coil relay switching an NC lamp contact',
-    `<rect x="44" y="20" width="112" height="64" rx="4"/><path d="M22 36h26c3-7 8-7 11 0 3-7 8-7 11 0h18M22 68h58"/><path d="M110 42h30l18-10M110 42v26h48M138 24v10"/>${pLabel(32, 30, 'A')}${pLabel(146, 22, 'NC')}`
+    'Battery, switch, coil relay, NC contact, and lamp',
+    `${obsBattery(20, 14, 88)}<path d="M20 14H164M20 88H164M42 14V30M42 30l22-9M68 30h20v10M88 70v18"/><circle cx="42" cy="30" r="1.8"/><circle cx="68" cy="30" r="1.8"/>${obsDot(42, 14)}${obsDot(88, 88)}${obsCoil(88, 40)}<path class="obs-link" d="M98 55H142V38H156"/><path d="M164 14V26M158 28h6M164 48l-6-21M164 48v10M164 78v10"/>${obsLamp(164, 68, 10)}${obsLbl(78, 43, 'A', 'obs-sm')}${obsLbl(78, 72, 'B', 'obs-sm')}${obsLbl(174, 25, 'C', 'obs-sm')}${obsLbl(146, 31, 'NC', 'obs-sm')}`
   ],
   'relay-nand': [
-    'Two input switches controlling a coil and NC lamp path',
-    `<path d="M22 32h24l18-10M64 32h18l18-10M100 32h32v40H22"/><rect x="122" y="42" width="22" height="22" rx="3"/><circle cx="168" cy="52" r="12"/><path d="m160 44 16 16m-16 0 16-16M144 52h12"/>`
+    'Battery, two series switches A and B, coil relay, NC contact, and lamp',
+    `${obsBattery(18, 14, 88)}<path d="M18 14H166M18 88H166M34 14V34M34 34l19-8M56 34h10M66 34l19-8M88 34h16v8M104 72v16"/><circle cx="34" cy="34" r="1.6"/><circle cx="56" cy="34" r="1.6"/><circle cx="66" cy="34" r="1.6"/><circle cx="88" cy="34" r="1.6"/>${obsDot(34, 14)}${obsDot(104, 88)}${obsCoil(104, 42)}<path class="obs-link" d="M114 57H144V38H158"/><path d="M166 14V26M160 28h6M166 48l-6-21M166 48v10M166 78v10"/>${obsLamp(166, 68, 10)}${obsLbl(45, 46, 'A', 'obs-sm')}${obsLbl(77, 46, 'B', 'obs-sm')}${obsLbl(176, 25, 'C', 'obs-sm')}${obsLbl(148, 31, 'NC', 'obs-sm')}`
   ],
   'relay-clock': [
-    'Coil wired through its own NC contact for rhythmic pulses',
-    `<circle cx="64" cy="52" r="24"/><path d="M64 28v10M64 52l14-10M48 64h32M106 52h20l8-18 8 36 8-36 8 18h20"/>`
+    'Battery feeding a coil and lamp in parallel through the coil NC contact',
+    `${obsBattery(22, 18, 88)}<path d="M22 88H158M22 18h28M50 18l30 5M78 18v7M80 18h78M106 18v20M106 68v20M158 18v25M158 63v25"/>${obsDot(106, 18)}${obsDot(106, 88)}${obsCoil(106, 38)}<path class="obs-link" d="M102 53H65V25m-3 4 3-4 3 4"/>${obsLamp(158, 53, 10)}${obsLbl(49, 11, 'C', 'obs-sm')}${obsLbl(80, 11, 'NC', 'obs-sm')}${obsLbl(96, 41, 'A', 'obs-sm')}${obsLbl(96, 70, 'B', 'obs-sm')}`
   ],
   'relay-latch': [
-    'Set button, Reset switch, and self-latching relay contact',
-    `<path d="M20 34h26l22-10M68 34h24v34H20M92 34h28M106 18v12M120 34h36v34H92"/><circle cx="156" cy="51" r="11"/><path d="m149 44 14 14m-14 0 14-14"/>`
+    'Battery, Reset switch, parallel Set button and NO relay contact, coil, and lamp',
+    `${obsBattery(18, 18, 88)}<path d="M18 88H172M18 18h16M34 18l22-3M56 18h18M76 13h22M87 13V6M82 6h10M100 18h72M66 18V46h8M74 46l22-9M100 46h12V18M132 18v20M132 68v20M172 18v25M172 63v25"/>${obsDot(66, 18)}${obsDot(112, 18)}${obsDot(132, 18)}${obsDot(132, 88)}${obsCoil(132, 38)}<path class="obs-link" d="M129 66H92V46"/>${obsLamp(172, 53, 10)}${obsLbl(45, 11, 'Rst', 'obs-sm')}${obsLbl(87, 29, 'Set', 'obs-sm')}${obsLbl(75, 58, 'NO', 'obs-sm')}`
   ],
   'half-adder': [
-    'XOR and AND gates producing Sum and Carry',
-    `<path d="M26 32h34M26 70h34M60 22h28a14 14 0 0 1 0 28H60ZM60 58h28a14 14 0 0 1 0 28H60Z"/><path d="M102 36h36M102 72h36"/><circle cx="154" cy="36" r="11"/><circle cx="154" cy="72" r="11"/>${pLabel(74, 41, 'XOR')}${pLabel(74, 77, 'AND')}`
+    'Battery, input switches A and B, XOR and AND gates, Sum and Carry lamps',
+    `${obsBattery(16, 22, 92)}<path d="M16 92H184M16 22h14V66M30 22l20-8M30 66l20-8M54 22h30M62 22V58h22M54 66h18M72 66v8h12M72 66V38h12"/><path class="paper-cut" d="M72 54v8"/><path d="M72 52v12"/><path d="M84 16h20a14 14 0 0 1 0 28H84ZM84 52h20a14 14 0 0 1 0 28H84ZM118 30h29M165 30h19v62M118 66h29M165 66h9v26"/>${obsDot(30, 22)}${obsDot(62, 22)}${obsDot(72, 66)}${obsDot(174, 92)}${obsLamp(156, 30, 9)}${obsLamp(156, 66, 9)}${obsLbl(42, 12, 'A', 'obs-sm')}${obsLbl(42, 56, 'B', 'obs-sm')}${obsLbl(99, 33, 'XOR')}${obsLbl(99, 69, 'AND')}${obsLbl(156, 15, 'Sum', 'obs-sm')}${obsLbl(156, 52, 'Carry', 'obs-sm')}`
   ],
   'mainframe-boot': [
-    'Pulse clock driving two memory cells and a four-bit readout',
-    `<rect x="20" y="34" width="32" height="36" rx="4"/><path d="M26 58h6V44h8v14h6"/><path d="M52 52h18"/><rect x="70" y="24" width="30" height="24" rx="3"/><rect x="70" y="56" width="30" height="24" rx="3"/><path d="M100 36h32M100 68h32"/><rect x="132" y="24" width="44" height="56" rx="4"/>${pLabel(154, 58, '0..3')}`
+    'Pulse clock driving two toggling memory cells with NOT feedback into a four-bit readout',
+    `<rect x="8" y="46" width="26" height="28" rx="3"/><path d="M12 65h4v-10h5v10h5v-10h4M34 66h14"/><rect x="48" y="44" width="28" height="32" rx="3"/><path d="M76 56h4M80 56V22h4M84 15l11 7-11 7Z"/><circle cx="97.5" cy="22" r="2.2"/><path d="M100 22V8H42V52h6M100 22V66h8M80 56V88h72V50h8"/><rect x="108" y="44" width="28" height="32" rx="3"/><path d="M136 56h6v6h18M142 56V22h-8M134 15l-11 7 11 7Z"/><circle cx="120.5" cy="22" r="2.2"/><path d="M118 22H104V52h4"/><rect x="160" y="38" width="34" height="40" rx="4"/>${obsDot(80, 56)}${obsDot(100, 22)}${obsDot(142, 56)}${obsLbl(21, 41, 'CLK')}${obsLbl(62, 63, 'B1')}${obsLbl(122, 63, 'B2')}${obsLbl(42, 47, 'D', 'obs-sm')}${obsLbl(40, 74, 'CK', 'obs-sm')}${obsLbl(91, 38, 'NOT', 'obs-sm')}${obsLbl(127, 38, 'NOT', 'obs-sm')}${obsLbl(155, 46, '1', 'obs-sm')}${obsLbl(155, 72, '2', 'obs-sm')}${obsLbl(177, 62, '0..3')}`
   ]
 };

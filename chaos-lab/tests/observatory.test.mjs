@@ -6,6 +6,7 @@ import { activities, conditions, freshActivity, measureActivity } from '../src/a
 import { starterBoard } from '../src/units.js';
 import { makeUnitPart, updateDeviceVisual } from '../src/unit-scenes.js';
 import { createActivityScene } from '../src/activity-scenes.js';
+import { diagram } from '../src/visuals.js';
 import {
   FREE_BUILD_BASE_PARTS,
   FREE_BUILD_PARTS,
@@ -236,6 +237,54 @@ test('half-adder adds all four binary input combinations using XOR and AND gates
     b.settle(4);
   }
   assert.equal(b.activity.passed, true);
+  assert.ok(b.settle(1).designReading.includes('00✓ 01✓ 10✓ 11✓'));
+
+  // Swapped Sum/Carry on labelled lamps fails and emits a diagnostic hint
+  const swapped = bench('half-adder');
+  swapped.wire('1:0', '2:0');
+  swapped.wire('1:0', '3:0');
+  swapped.wire('2:1', '4:0');
+  swapped.wire('2:1', '5:0');
+  swapped.wire('3:1', '4:1');
+  swapped.wire('3:1', '5:1');
+  swapped.wire('4:2', '7:0'); // XOR -> Carry
+  swapped.wire('5:2', '6:0'); // AND -> Sum
+  swapped.wire('6:1', '8:3');
+  swapped.wire('7:1', '8:3');
+  swapped.parts[1].closed = true;
+  swapped.parts[2].closed = false;
+  const swapRes = swapped.settle(4);
+  assert.equal(swapped.activity.passed, false);
+  assert.ok(swapRes.designReading.includes('Swap Sum & Carry'));
+
+  // Replacing Bit A / Sum without roles still distinguishes switches and lamps
+  const unlabelled = bench('half-adder');
+  delete unlabelled.parts[1].role;
+  delete unlabelled.parts[5].role;
+  unlabelled.wire('1:0', '2:0');
+  unlabelled.wire('1:0', '3:0');
+  unlabelled.wire('2:1', '4:0');
+  unlabelled.wire('2:1', '5:0');
+  unlabelled.wire('3:1', '4:1');
+  unlabelled.wire('3:1', '5:1');
+  unlabelled.wire('4:2', '6:0');
+  unlabelled.wire('5:2', '7:0');
+  unlabelled.wire('6:1', '8:3');
+  unlabelled.wire('7:1', '8:3');
+  for (const [a, bitB] of [[false, false], [true, false], [false, true], [true, true]]) {
+    unlabelled.parts[1].closed = a;
+    unlabelled.parts[2].closed = bitB;
+    unlabelled.settle(4);
+  }
+  assert.equal(unlabelled.activity.passed, true);
+});
+
+test('NOT gate evaluates only input A and ignores pin B', () => {
+  const bat = { id: 'b', kind: 'battery' };
+  const g = { id: 'g', kind: 'gate', gateMode: 'NOT', outputHigh: true };
+  const s = solveCircuit([bat, g], [{ a: 'g:3', b: 'b:1' }, { a: 'g:1', b: 'b:0' }], 0.05);
+  applyStep([bat, g], s);
+  assert.equal(g.outputHigh, true);
 });
 
 test('mainframe-boot passes with both 2-bit ripple and synchronous counters', () => {
@@ -275,15 +324,17 @@ test('Toolbelt unlocks, Mainframe progress, and Blueprint SVG track completion a
   const guestEmpty = unlockedToolbelt([], LEVELS, false);
   assert.deepEqual([...guestEmpty], FREE_BUILD_BASE_PARTS);
   const signedIn = unlockedToolbelt([], LEVELS, true);
-  assert.deepEqual([...signedIn], FREE_BUILD_PARTS);
+  assert.deepEqual([...signedIn], FREE_BUILD_BASE_PARTS);
+  assert.equal(FREE_BUILD_PARTS.length, 26);
 
   const invIdx = LEVELS.findIndex(l => l.id === 'relay-inverter');
   const nandIdx = LEVELS.findIndex(l => l.id === 'relay-nand');
+  const potIdx = LEVELS.findIndex(l => l.id === 'lib-pot');
   const bootIdx = LEVELS.findIndex(l => l.id === 'mainframe-boot');
   const lampFinal = LEVELS.findIndex(l => l.id === 'lamp-control-challenge');
 
-  const partialBelt = unlockedToolbelt([invIdx, nandIdx], LEVELS, false);
-  assert.ok(partialBelt.has('coil') && partialBelt.has('rail') && partialBelt.has('gate'));
+  const partialBelt = unlockedToolbelt([invIdx, nandIdx, potIdx], LEVELS, false);
+  assert.ok(partialBelt.has('coil') && partialBelt.has('rail') && partialBelt.has('gate') && partialBelt.has('pot'));
   assert.equal(partialBelt.has('latch'), false);
 
   const prog = mainframeProgress([lampFinal, invIdx, bootIdx], LEVELS);
@@ -336,4 +387,21 @@ test('3D Observatory cabinet and all 7 new part models build, update, and dispos
   });
   fixture.dispose();
   assert.equal(scene.children.length, 7);
+});
+
+test('Observatory diagrams render clearly with battery terminals on battery-powered levels', () => {
+  const obsLevels = LEVELS.filter(l => l.unit === 'Observatory');
+  assert.equal(obsLevels.length, 6);
+  for (const level of obsLevels) {
+    const svg = diagram(level.diagram);
+    assert.ok(svg.includes('class="circuit-diagram"'), `${level.id} missing circuit-diagram`);
+    if (level.id === 'mainframe-boot') {
+      for (const token of ['CLK', 'B1', 'B2', 'NOT', '0..3']) {
+        assert.ok(svg.includes(token), `mainframe-boot missing ${token}`);
+      }
+    } else {
+      assert.ok(svg.includes('>+'), `${level.id} missing battery +`);
+      assert.ok(svg.includes('>−'), `${level.id} missing battery −`);
+    }
+  }
 });
