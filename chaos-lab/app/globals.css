@@ -77,7 +77,10 @@ header>#progress:not([hidden])~#account-controls{margin-left:0}
 header>#progress[hidden]~#account-controls{margin-left:auto}
 .account-button{padding:8px 11px;border:1px solid #927045;border-radius:5px;color:#edd8b4;font-size:13px}
 .account-primary{background:#ae874e;color:#fff4dc}
-.account-save-label{font-size:11px;color:#d4b27b}
+.account-save-label{font-size:11px;color:#d4b27b;transition:color .2s}
+.account-save-label.syncing{color:#f2c96e}
+.account-save-label.saved{color:#8be3a6}
+.account-save-label.warn{color:#f59882}
 .workshop-loader{position:fixed;inset:0;z-index:20;display:grid;place-items:center;padding:20px;background:radial-gradient(ellipse at 50% 40%,#eadbc2,#cfb58e);transition:opacity .28s ease}
 .workshop-loader.exiting{opacity:0;pointer-events:none}
 .loader-card{position:relative;width:min(440px,100%);padding:26px 28px 24px;background:repeating-linear-gradient(0deg,transparent 0,transparent 25px,#b49a6a0d 25px,#b49a6a0d 26px),#f6ecd6;border:1px solid #c1a575;border-radius:3px;box-shadow:2px 4px 0 #9b784125,0 18px 40px #54361822;color:#664b2f;transform:rotate(-.35deg)}

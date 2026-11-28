@@ -7,6 +7,19 @@ import LoadingScreen from './loading-screen';
 let workshopModulePromise=null;
 function loadWorkshopModule(){return (workshopModulePromise??=import('../src/main'));}
 function hasSessionHint(){return typeof document!=='undefined'&&/(?:^|;\s*)__client_uat=[1-9]/.test(document.cookie);}
+async function fetchCloudProgress(){
+ for(let attempt=0;attempt<2;attempt++){
+  try{
+   const response=await fetch('/api/progress',{cache:'no-store',signal:AbortSignal.timeout(10000)});
+   if(response.ok)return {accountProgress:(await response.json()).progress,cloudReady:true,cloudError:false};
+   if(response.status===401||response.status===403)return {accountProgress:null,cloudReady:false,cloudError:true};
+  }catch(error){
+   if(attempt===1)console.error('Could not load cloud progress.',error);
+  }
+  if(attempt===0)await new Promise(r=>setTimeout(r,800));
+ }
+ return {accountProgress:null,cloudReady:false,cloudError:true};
+}
 
 function Icon({name}){return <span className="svg-icon" dangerouslySetInnerHTML={{__html:icon(name)}}/>;}
 function Tool({id,name,label}){return <button id={id} className="tool" title={label} aria-label={label}><Icon name={name}/></button>;}
@@ -52,12 +65,7 @@ export default function Workshop(){
     setLoadProgress(48);
     const [mod,progressResult]=await Promise.all([
      loadWorkshopModule(),
-     fetch('/api/progress',{cache:'no-store',signal:AbortSignal.timeout(4000)})
-      .then(async response=>{
-       if(!response.ok)return {cloudError:true};
-       return {accountProgress:(await response.json()).progress,cloudReady:true};
-      })
-      .catch(error=>{console.error('Could not load cloud progress.',error);return {cloudError:true};})
+     fetchCloudProgress()
     ]);
     workshopMod=mod;
     ({accountProgress=null,cloudReady=false,cloudError=false}=progressResult);
@@ -102,7 +110,7 @@ export default function Workshop(){
   return ()=>clearTimeout(timer);
  },[started]);
  return <div id="workshop">
- <header><button className="brand" id="home" aria-label="Home"><Icon name="wire"/>little circuit<span>.</span></button><div id="progress" hidden aria-label="Level progress"/><div id="account-controls">{isLoaded&&(isSignedIn?<><span className="account-save-label">Account saves</span><UserButton/></>:<><SignInButton mode="modal"><button className="account-button">Sign in</button></SignInButton><SignUpButton mode="modal"><button className="account-button account-primary">Create account</button></SignUpButton></>)}</div><button id="library-button" className="library-pill" title="The Library" aria-label="The Library"><Icon name="library"/><span id="library-count">7 / 26</span></button><button id="master-button" className="master-pill" title="Master Challenges" aria-label="Master Challenges"><Icon name="master"/><span id="master-count">0 / 7</span></button><button id="mainframe-button" className="mainframe-pill" title="Observatory Mainframe" aria-label="Observatory Mainframe"><Icon name="observatory"/><span id="mainframe-count">0 / 11</span></button><button id="guide-button" className="tool" title="Levels" aria-label="Levels"><Icon name="levels"/></button></header>
+ <header><button className="brand" id="home" aria-label="Home"><Icon name="wire"/>little circuit<span>.</span></button><div id="progress" hidden aria-label="Level progress"/><div id="account-controls">{isLoaded&&(isSignedIn?<><span id="account-save-status" className="account-save-label">Account saves</span><UserButton/></>:<><SignInButton mode="modal"><button className="account-button">Sign in</button></SignInButton><SignUpButton mode="modal"><button className="account-button account-primary">Create account</button></SignUpButton></>)}</div><button id="library-button" className="library-pill" title="The Library" aria-label="The Library"><Icon name="library"/><span id="library-count">7 / 26</span></button><button id="master-button" className="master-pill" title="Master Challenges" aria-label="Master Challenges"><Icon name="master"/><span id="master-count">0 / 7</span></button><button id="mainframe-button" className="mainframe-pill" title="Observatory Mainframe" aria-label="Observatory Mainframe"><Icon name="observatory"/><span id="mainframe-count">0 / 11</span></button><button id="guide-button" className="tool" title="Levels" aria-label="Levels"><Icon name="levels"/></button></header>
  <main id="game" hidden><aside className="sidebar"><span id="unit-name" className="unit-name">Tutorial</span><div className="level-heading"><span id="level-number">01 / 05</span><span id="goal-icon" aria-label="Incomplete">○</span></div><h1 id="level-title">Complete circuit</h1>
  <span id="completion-status" className="sr-only" role="status"/>
  <section id="win" className="completion-card" aria-labelledby="completion-title" hidden>

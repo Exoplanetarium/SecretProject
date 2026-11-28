@@ -24,16 +24,14 @@ test('photoresistor standalone meter level is removed from Unit 1',()=>{
  assert.equal(activities.some(l=>l.id==='light-meter'),false);
 });
 
-test('house breaker starts overloaded and default resistance fails until stair lights are wired in series at <= 20 Ω',()=>{
+test('house breaker starts with Reading wired cleanly and passes when stair lights run in series at <= 20 Ω',()=>{
  const b=bench('house-breaker');
- assert.equal(b.parts[4].resistance,60);
- assert.ok(b.tick().current>.42);
- // Rewiring Landing and Stairs in series with starter 60 Ω or default 30 Ω is still too dim (< 0.10 A).
- b.wires.length=0;
- b.wire('1:0','2:0');b.wire('2:1','1:1');
+ assert.equal(b.parts[4].resistance,30);
+ const start=b.tick();
+ assert.ok(Math.abs(start.currents.p2-.3)<.001);
+ assert.equal(start.activityPassed,false);
+ // Rewiring Landing and Stairs in series at default 30 Ω is still too dim (< 0.10 A).
  b.wire('1:0','5:0');b.wire('5:1','3:0');b.wire('3:1','4:0');b.wire('4:1','1:1');
- assert.equal(b.tick().activityPassed,false);
- b.parts[4].resistance=30;
  assert.equal(b.tick().activityPassed,false);
  b.parts[4].resistance=20;
  const pass=b.tick();
@@ -41,7 +39,7 @@ test('house breaker starts overloaded and default resistance fails until stair l
  assert.equal(pass.activityPassed,true);
 });
 
-test('larger capacitor keeps its lamp lit longer and the timer measures the bell input',()=>{
+test('larger capacitor keeps its lamp lit longer and the timer measures the bell input regardless of polarity',()=>{
  const b=bench('capacity-compare');
  for(const p of b.parts)if(p.kind==='capacitor')p.charge=6;
  b.activity.running=true;
@@ -53,6 +51,14 @@ test('larger capacitor keeps its lamp lit longer and the timer measures the bell
  timer.tick();
  for(let i=0;i<80;i++)timer.tick(.05);
  assert.ok(timer.activity.rang&&timer.activity.passed,timer.activity.seconds);
+
+ // Reversed bell wiring across the capacitor also rings and passes
+ const rev=bench('timer-bell');
+ rev.wire('3:0','4:1');rev.wire('3:1','4:0');
+ rev.parts[1].resistance=50;rev.activity.running=true;
+ rev.tick();
+ for(let i=0;i<80;i++)rev.tick(.05);
+ assert.ok(rev.activity.rang&&rev.activity.passed,rev.activity.seconds);
 });
 
 test('opening a lit series or parallel circuit produces different footlight results',()=>{

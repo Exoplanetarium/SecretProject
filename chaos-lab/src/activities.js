@@ -25,7 +25,7 @@ function activity(id,unit,title,goal,hint,layout,parts,extra={}){
  return {id,unit,title,goal,hint,parts,layout,diagram:id,activity:true,check:s=>s.activityPassed===true,ending:extra.ending||goal,...extra};
 }
 export const activities=[
- activity('house-breaker','Resistors','Keep the lights on','Keep the reading lamp bright and both stair lights at least 0.10 A each under the 0.42 A breaker limit. Use one resistor.','All three lamps start in parallel. Wiring the two stair lights in series lets one current power both. Tune the resistor in that stair branch to stay at or under 0.42 A.',fixture([battery,device('lamp',-6,-2,{role:'Reading'}),device('lamp',1,-2,{role:'Landing'}),device('lamp',7,-2,{role:'Stairs'}),device('resistor',0,3,{resistance:60})],leads('1.0-2.0','2.0-3.0','3.0-4.0','1.1-2.1','2.1-3.1','3.1-4.1')),['battery','lamp','resistor'],{challenge:true,target:'Reading ≥ 0.28 A · Stairs ≥ 0.10 A each · Total ≤ 0.42 A',ending:'Putting the two stair lights in series let one branch current power both under the 0.42 A breaker while the reading lamp stayed bright.'}),
+ activity('house-breaker','Resistors','Keep the lights on','Keep the reading lamp bright and both stair lights at least 0.10 A each under the 0.42 A breaker limit. Use one resistor.','Reading is already on its own bright branch (0.30 A). Wire Landing, Stairs, and the resistor in one series branch across the battery, then lower the resistor to 10 or 20 Ω so both stair lights reach 0.10 A under the 0.42 A breaker.',fixture([battery,device('lamp',-6,-2,{role:'Reading'}),device('lamp',1,-2,{role:'Landing'}),device('lamp',7,-2,{role:'Stairs'}),device('resistor',0,3,{resistance:30})],leads('1.0-2.0','2.1-1.1')),['battery','lamp','resistor'],{challenge:true,target:'Reading ≥ 0.28 A · Stairs ≥ 0.10 A each · Total ≤ 0.42 A',ending:'Putting the two stair lights in series let one branch current power both under the 0.42 A breaker while the reading lamp stayed bright.'}),
  activity('capacity-compare','Capacitors','Capacitor size','Charge both capacitors to 6 V. Watch which lamp stays on longer.','Each isolated loop uses the same 20 Ω lamp. Select Charge and release and compare the gauges.',fixture([device('capacitor',-4,-1,{capacitance:.1,role:'0.10 F'}),device('lamp',-4,2),device('capacitor',4,-1,{capacitance:.22,role:'0.22 F'}),device('lamp',4,2)],leads('1.0-2.0','1.1-2.1','3.0-4.0','3.1-4.1')),['capacitor','lamp'],{ending:'At the same voltage the larger capacitor stored more charge and lit its lamp for longer.'}),
  activity('timer-bell','Capacitors','Three-second bell','Make the bell ring three seconds after Test. It senses 3 V across its terminals.','Charge the capacitor through a resistor. Put the bell across the capacitor module. Compare your times as you adjust resistance.',fixture([battery,resistor,cap,device('bell',7,2)],leads('1.0-2.0','2.1-3.0','3.1-1.1')),['battery','resistor','capacitor','bell'],{challenge:true,target:'2.7–3.3 seconds',ending:'The capacitor voltage crossed the bell threshold at the requested time.'}),
  activity('led-series','LEDs','Series footlights','Power both red footlights. Unplug one lead with the pliers and see what happens.','In one loop the same current passes through both LEDs.',fixture(twoLeds,leads('1.0-2.0','2.1-3.0','3.1-1.1')),['battery','led'],{ending:'Opening the shared current path put both footlights out.'}),
@@ -70,13 +70,16 @@ export function measureActivity(lesson,parts,wires,s,a,on,dt){
   if(a.running&&s.lit===2)a.seen.add('both');
   if(on&&a.running&&a.seen.has('both')&&amp(lamps[0])<.025&&amp(lamps[1])>.025){a.passed=true;a.running=false;}
  }else if(id==='timer-bell'){
-  const bell=kind('bell')[0],v=voltage(bell);
+  const bell=kind('bell')[0],v=Math.abs(voltage(bell));
   if(a.running&&on){
    const prev=a.lastVoltage??0;
    if(v>=3){
     a.seconds+=dt*Math.max(0,Math.min(1,(3-prev)/(v-prev||1)));a.running=false;a.rang=true;
     const joined=nets(wires);
-    const acrossCap=caps.some(c=>joined(c.id+':0',bell.id+':0')&&joined(c.id+':1',bell.id+':1'));
+    const acrossCap=caps.some(c=>
+     (joined(c.id+':0',bell.id+':0')&&joined(c.id+':1',bell.id+':1'))||
+     (joined(c.id+':0',bell.id+':1')&&joined(c.id+':1',bell.id+':0'))
+    );
     a.passed=acrossCap&&kind('resistor').some(r=>amp(r)>.001)&&a.seconds>=2.7&&a.seconds<=3.3;
    }else a.seconds+=dt;
    a.lastVoltage=v;

@@ -754,7 +754,7 @@ export function updateDeviceVisual(part,state,activity,powered,elapsed=0){
    part.dialMark.rotation.z=-T.MathUtils.degToRad(activity.dial||0);
   }
  }else if(part.hammer){
-  const voltage=powered?(state.voltages[part.id+':0']||0)-(state.voltages[part.id+':1']||0):0;
+  const voltage=powered?Math.abs((state.voltages[part.id+':0']||0)-(state.voltages[part.id+':1']||0)):0;
   if(voltage>=3&&!part.wasRinging)part.strikeTime=.44;
   part.wasRinging=voltage>=3;
   part.strikeTime=Math.max(0,part.strikeTime-elapsed);

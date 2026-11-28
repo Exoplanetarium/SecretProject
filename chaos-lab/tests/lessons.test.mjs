@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {LEVELS,solveCircuit} from '../src/circuit.js';
 import {units} from '../src/units.js';
-import {LESSONS,CAMPAIGN_UNITS,chapterGateLevel,levelLockReason,canAccessLevel,nextPlayLevel,restoreProgress,stepSatisfied} from '../src/lessons.js';
+import {LESSONS,CAMPAIGN_UNITS,chapterGateLevel,levelLockReason,canAccessLevel,nextPlayLevel,encodeProgress,mergeProgress,needsCloudSync,restoreProgress,stepSatisfied} from '../src/lessons.js';
 import {WORKSHOP_TIPS} from '../src/loading-tips.js';
 const b={id:'b',kind:'battery'},l={id:'l',kind:'lamp'},r={id:'r',kind:'resistor',resistance:30},t={id:'t',kind:'resistor',resistance:30};
 const w=(a,b)=>({a,b});
@@ -61,3 +61,59 @@ test('guest progression unlocks Tutorial + first level of each chapter while sig
  assert.ok(LEVELS.every((_,i)=>canAccessLevel(i,[],true,true)));
 });
 test('loading screen tips are non-empty and follow the writing rules',()=>{assert.ok(WORKSHOP_TIPS.length>=10);for(const tip of WORKSHOP_TIPS){assert.equal(typeof tip,'string');assert.ok(tip.trim().length>10);assert.ok(!tip.includes('—'));}});
+
+test('Chapters 2-4 and Keep the lights on provide multi-step interactive teaching guides',()=>{
+ for(const id of ['house-breaker','rc-timing','capacitor-backup','timer-bell','led-pair','cable-tester','loaded-drive','dispatch']){
+  const idx=LEVELS.findIndex(l=>l.id===id);
+  assert.ok(idx>=0,`missing ${id}`);
+  assert.ok(LESSONS[idx].length>=2,`${id} should have multi-step guide`);
+  for(const s of LESSONS[idx])assert.ok(!s.title.includes('—')&&!s.text.includes('—'),`em dash in ${id}`);
+ }
+});
+
+test('encodeProgress/restoreProgress round-trip lastLevel, unlockAll, and updatedAt cleanly',()=>{
+ const motorIdx=LEVELS.findIndex(l=>l.id==='motor-run');
+ const resIdx=LEVELS.findIndex(l=>l.id==='resistance');
+ const encoded=encodeProgress([0,resIdx],{[motorIdx]:{parts:[b],wires:[],updatedAt:2000}},null,{lastLevel:motorIdx,unlockAll:true,updatedAt:2500});
+ assert.equal(encoded.lastLevel,'motor-run');
+ assert.equal(encoded.unlockAll,true);
+ assert.equal(encoded.updatedAt,2500);
+ const restored=restoreProgress(encoded);
+ assert.deepEqual(restored.completed,[0,resIdx]);
+ assert.equal(restored.lastLevel,motorIdx);
+ assert.equal(restored.unlockAll,true);
+ assert.equal(restored.updatedAt,2500);
+
+ // Old saves without metadata remain valid and match byte expectations
+ const bare=encodeProgress([0],{0:{parts:[],wires:[]}});
+ assert.equal('lastLevel' in bare,false);
+ assert.equal('unlockAll' in bare,false);
+ assert.equal('updatedAt' in bare,false);
+});
+
+test('mergeProgress keeps monotonic chapter progress across sign-in and stale cloud blobs',()=>{
+ const resIdx=LEVELS.findIndex(l=>l.id==='resistance');
+ const capIdx=LEVELS.findIndex(l=>l.id==='capacitor-charge');
+ const ledIdx=LEVELS.findIndex(l=>l.id==='led-forward');
+ const motorIdx=LEVELS.findIndex(l=>l.id==='motor-run');
+
+ // Brother scenario: cloud stopped saving at Resistors, local reached Motors
+ const staleCloud=encodeProgress([0,resIdx],{[resIdx]:{parts:[b,l,r],wires:[],updatedAt:1000}},null,{lastLevel:resIdx,updatedAt:1000});
+ const newerLocal=encodeProgress([0,resIdx,capIdx,ledIdx,motorIdx],{[resIdx]:{parts:[b,l,r],wires:[],updatedAt:1000},[motorIdx]:{parts:[b],wires:[{a:'b:0',b:'b:1'}],updatedAt:5000}},null,{lastLevel:motorIdx,updatedAt:5000});
+
+ const merged=mergeProgress(staleCloud,newerLocal);
+ const restored=restoreProgress(merged);
+ assert.deepEqual(restored.completed,[0,resIdx,capIdx,ledIdx,motorIdx]);
+ assert.equal(restored.lastLevel,motorIdx);
+ assert.equal(restored.boards[motorIdx].wires.length,1);
+ assert.equal(needsCloudSync(merged,staleCloud),true);
+
+ // Reverse order (cross-device union): cloud has LEDs, another tab only sends Capacitors -> neither is lost
+ const deviceA=encodeProgress([0,resIdx,capIdx],{[capIdx]:{parts:[b],wires:[],updatedAt:3000}},null,{lastLevel:capIdx,updatedAt:3000});
+ const deviceB=encodeProgress([0,resIdx,ledIdx],{[ledIdx]:{parts:[b,l],wires:[],updatedAt:4000}},null,{lastLevel:ledIdx,updatedAt:4000});
+ const unionMerged=mergeProgress(deviceA,deviceB);
+ const unionRestored=restoreProgress(unionMerged);
+ assert.ok(unionRestored.completed.includes(capIdx));
+ assert.ok(unionRestored.completed.includes(ledIdx));
+ assert.equal(unionRestored.lastLevel,ledIdx);
+});
