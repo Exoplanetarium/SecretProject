@@ -2,6 +2,10 @@ import {existingLevels,LEVELS} from './circuit.js';
 import {nets} from './activities.js';
 import {newLessons} from './units.js';
 import {mergeSandboxSlots,normalizeSandboxSlots} from './sandbox.js';
+import {transistorGuides} from './transistors.js';
+import {foundationGuides} from './foundations.js';
+import {comparatorGuides} from './comparators.js';
+import {logicGuides} from './logic-unit.js';
 const levelIndexById=new Map(LEVELS.map((l,i)=>[l.id,i]));
 const step=(title,text,target,when)=>({title,text,target,when});
 const guidedSteps=[
@@ -21,28 +25,48 @@ const guidedSteps=[
 const stepsById=new Map(existingLevels.map((l,i)=>[l.id,guidedSteps[i]]));
 const observatoryGuides={
  'relay-inverter':[
-  step('Electromagnetic switch','A coil relay is two circuits in one box. Current through A and B pulls C away from NC and onto NO. Click ? on any part card to inspect its terminals.','[data-kind="coil"]'),
-  step('Wire the inverter','Connect the battery and switch to coil A and B, then route the lamp through C and NC. Power on and flip the switch to invert the light.','#viewport')
+  step('Magnetic switch','A coil relay is two separate circuits inside one box. When power runs through coil A and B, a magnet pulls C away from NC and onto NO. Click ? on Coil relay to check the pins.','[data-kind="coil"]'),
+  step('Flip the light','Wire the battery and switch to coil A and B, then wire the lamp through C and NC. Power on and flip the switch to watch the light turn off when the switch closes.','#viewport')
  ],
  'relay-nand':[
-  step('Series coil control','If two switches sit in series feeding coil A and B, the coil only pulls when both switches are closed. Use ? on Coil relay if you want a refresher.','[data-kind="coil"]'),
-  step('Test all 4 input states','Route the lamp through C and NC so it stays lit until both A and B are closed. Flip A and B through all four pairs.','#viewport')
+  step('Two switches in one line','Wire both switches in a row into coil A and B so the magnet only pulls when both A and B are closed.','[data-kind="coil"]'),
+  step('Test all 4 states','Route the lamp through C and NC so it stays lit unless both A and B are closed. Flip A and B through all four combinations.','#viewport')
  ],
  'relay-clock':[
-  step('Self-interrupting relay','Feeding coil A through its own NC contact turns power off as soon as the coil pulls in, then back on when it drops.','#goal-picture'),
-  step('Wire the buzzer loop','Connect battery + to C, NC to coil A, and coil B to battery −. Put the lamp across A and B, and optionally wire the capacitor in parallel for a slower beat.','#viewport')
+  step('Relay that turns itself off','If coil A gets power through its own NC pin, the magnet pulls open its own power, drops back down, and repeats on its own.','#goal-picture'),
+  step('Wire the blinker loop','Connect battery + to C, NC to coil A, and coil B to battery −. Put the lamp across A and B, and add the 0.01 F capacitor across the coil to slow down the blink.','#viewport')
  ],
  'relay-latch':[
-  step('Self-holding loop','A momentary push button opens when released. Connecting C and NO in parallel with the Set button keeps coil A energized after release.','[data-kind="button"]'),
-  step('Latch and clear','Close Reset, press Set so NO holds the coil, then open Reset to clear the stored bit.','#viewport')
+  step('Latch with NO','A push button springs back open when you let go. Wiring C and NO across the Set button makes the relay keep itself powered after you release Set.','[data-kind="button"]'),
+  step('Press Set then open Reset','Close Reset, tap Set so NO locks the light on, then open Reset to turn it off again.','#viewport')
  ],
- 'half-adder':[
-  step('Multi-pin logic gates','Every logic gate needs its − pin joined to battery − via the bus bar. Select a placed gate to pick XOR, AND, OR, NOR, NAND, or NOT.','[data-kind="gate"]'),
-  step('Wire Sum and Carry','Send switches A and B into both gates: XOR drives Sum and AND drives Carry. Test all four combinations.','#viewport')
+ 'relay-boss':[
+  step('Combine latch and status lamp','Use NC for the Stopped lamp and NO to keep the coil and Machine running after you let go of Start. Place Stop in the coil loop.','[data-kind="coil"]'),
+  step('Test idle, start, and stop','Power on to see Stopped lit, tap Start so Machine stays running, then open and re-close Stop.','#viewport')
+ ],
+ 'mem-save':[
+  step('Save one bit on press','Wire − on the memory cell to the bus bar. Connect Data to D, Save to CK, and Q to the lamp.','[data-kind="latch"]'),
+  step('Close, tap Save, then clear','Close Data, tap Save so the lamp stays lit even after Data opens, then open Data and tap Save again to turn it off.','#viewport')
+ ],
+ 'mem-toggle':[
+  step('Feedback through NOT','Connect Q through the NOT gate back to D so the cell prepares the opposite bit every time. Wire Tap to CK and Q to the lamp.','[data-kind="latch"]'),
+  step('Tap to toggle','Power on and press Tap three times to watch the lamp flip ON and OFF on every tap.','#viewport')
+ ],
+ 'logic-shift-reg':[
+  step('Pass the signal down the line','Connect Data to Stage 1 D, Stage 1 Q to Stage 2 D, and Stage 2 Q to Stage 3 D. Wire Step to every CK pin and join all − pins to the bus bar.','[data-kind="latch"]'),
+  step('Watch the light march','Connect each Q pin to its lamp, power on, close Data, and press Step three times to move the light down the row.','#viewport')
+ ],
+ 'mem-ring':[
+  step('Loop the last cell back around','Send Load and Stage 3 Q into the OR chip feeding Stage 1 D. Chain Stage 1 Q → Stage 2 D → Stage 3 D, with Step on every CK and a lamp on every Q.','[data-kind="latch"]'),
+  step('Load one lit bit and orbit','Close Load, tap Step once, open Load, then tap Step three more times so the light chases cleanly around the loop.','#viewport')
+ ],
+ 'mem-counter':[
+  step('Two toggling memory cells','Loop each cell Q through a NOT gate back to its own D pin. Wire Step to Bit 1 CK, Bit 1 NOT output to Bit 2 CK, and Q1 / Q2 to readout pins 1 and 2.','[data-kind="display"]'),
+  step('Count 0 to 3 on each tap','Power on and press Step repeatedly so the readout counts 0, 1, 2, and 3.','#viewport')
  ],
  'mainframe-boot':[
-  step('Two-bit ripple counter','Each memory cell copies D to Q when CK rises from 0 V to 6 V. Feeding Q back through a NOT gate makes a cell toggle on every pulse.','[data-kind="latch"]'),
-  step('Chain two bits to readout','Clock Bit 1 from the pulse clock and clock Bit 2 from Bit 1 NOT output. Connect Q1 and Q2 to readout pins 1 and 2 to count 0, 1, 2, 3.','#viewport')
+  step('Automatic 2-bit counter','Combine your toggling memory cells with the pulse clock so the counter steps on its own.','[data-kind="latch"]'),
+  step('Count 0, 1, 2, 3','Feed the two count bits into readout pins 1 and 2, then power on and watch the Mainframe boot.','#viewport')
  ]
 };
 const libraryGuides={
@@ -60,6 +84,7 @@ const libraryGuides={
  'lib-photo':[step('Light-sensitive resistor','Resistance falls to 600 Ω in bright light and climbs to 10,000 Ω in the dark.','[data-kind="photo"]'),step('Fade the LED','Wire the photoresistor in series with the LED, then select the photoresistor and lower Light.','#viewport')],
  'lib-relay':[step('Darkness trigger','The sensor switch monitors a photoresistor on L1 and L2 and closes C to NO when resistance passes 5,000 Ω.','[data-kind="relay"]'),step('Trigger the lamp','Connect the photoresistor to L1 and L2, wire the lamp through C and NO, then dim Light on the photoresistor.','#viewport')],
  'lib-transistor':[step('Electronic switch','Small current into Base (B) toward Emitter (E) switches larger current from Collector (C) to Emitter (E).','[data-kind="transistor"]'),step('Switch the load','Wire E to −, the lamp between + and C, and the switch + 100 Ω resistor to B, then flip the switch.','#viewport')],
+ 'lib-comparator':[step('Voltage balance scale','Whenever + is higher than −, output Q turns ON (6 V). Wire Dial across + and 0V with W to +, and the 3 V resistor midpoint to −.','[data-kind="comparator"]'),step('Cross 3 V','Wire Q to the lamp, power on, and turn Dial from low to high until the lamp turns on past halfway.','#pot-label')],
  'lib-coil':[step('Double-throw relay','Energizing coil A and B moves common C from NC to NO.','[data-kind="coil"]'),step('Swap NC and NO lamps','Power A and B through the switch, feed C from battery +, and wire one lamp to NC and one to NO.','#viewport')],
  'lib-gate':[step('Logic output stage','Connect − to battery − so the gate can read inputs A and B and drive output Q.','[data-kind="gate"]'),step('Test the AND gate','Wire switches A and B into A and B and Q into the lamp, then toggle both switches closed.','#viewport')],
  'lib-clock':[step('Built-in pulse source','The pulse clock alternates between 6 V and 0 V across + and − on its own.','[data-kind="clock"]'),step('Blink the lamp','Wire clock + and − to the lamp and turn on power for three pulses.','#viewport')],
@@ -68,9 +93,9 @@ const libraryGuides={
 };
 const chapterGuides={
  'house-breaker':[
-  step('Budget 0.42 A','The Reading lamp is already wired on its own branch drawing 0.30 A. That leaves 0.12 A for both stair lights together.','#challenge-target'),
-  step('Wire stairs in series','Wire Landing, Stairs, and the resistor in one series loop across the battery so the same branch current passes through both lamps.','#viewport','hb-series'),
-  step('Lower resistance and test','Select the resistor and tune it to 10 or 20 Ω so Landing and Stairs each reach 0.10 A under the 0.42 A limit.','#value-label','unit-goal')
+  step('Budget 0.42 A','The Reading lamp already draws 0.30 A on its own branch. That leaves 0.12 A for both stair lights together.','#challenge-target'),
+  step('Place your one resistor','Wire Landing, Stairs, and the resistor so both stair lights share one branch without slowing down the Reading lamp.','#viewport','hb-series'),
+  step('Tune ohms and test','Select the resistor and adjust its ohms until Landing and Stairs both reach 0.10 A under the 0.42 A limit.','#value-label','unit-goal')
  ],
  'capacitor-charge':[
   step('Storing energy','A capacitor acts like a fast rechargeable tank. Its voltage climbs until it matches the 6 V battery.','#goal-picture'),
@@ -125,7 +150,7 @@ const chapterGuides={
   step('Release the charge','Press Release below and watch the color shift from magenta to red.', '#activity-controls','unit-goal')
  ],
  'cable-tester':[
-  step('Opposite test pair','Wire the red and green LEDs across Test socket pins 1 and 2 in opposite directions.', '#viewport','leds-opposite'),
+  step('Opposite test pair','Hook up the red and green LEDs across the test socket so each direction of current lights a different color.', '#viewport','leds-opposite'),
   step('Calibrate Known + and Known −','Turn on power and switch Socket between Known + and Known − so each LED lights once.', '#activity-controls','calibrated'),
   step('Test cables A, B, and C','Switch through Cable A, B, and C with power on and tag each as Forward, Reverse, or Dead.', '#activity-controls','unit-goal')
  ],
@@ -161,7 +186,7 @@ const chapterGuides={
   step('Aim gate and send crate','Power on, aim the servo dial to match the requested bin, and click Send crate.', '#activity-controls','unit-goal')
  ]
 };
-for(const [id,steps] of Object.entries({...observatoryGuides,...libraryGuides,...chapterGuides}))stepsById.set(id,steps);
+for(const [id,steps] of Object.entries({...foundationGuides,...transistorGuides,...comparatorGuides,...logicGuides,...observatoryGuides,...libraryGuides,...chapterGuides}))stepsById.set(id,steps);
 export const LESSONS=LEVELS.map(l=>stepsById.get(l.id)??[step(l.title,l.goal,'#challenge-target','unit-goal')]);
 function samePinPair(joined,a,b){
  if(!a||!b)return false;
@@ -311,7 +336,7 @@ export function needsCloudSync(mergedRaw,cloudRaw){
  }
  return comparableProgressKey(mergedRaw)!==comparableProgressKey(cloudRaw);
 }
-export const CAMPAIGN_UNITS=['Tutorial','Resistors','Capacitors','LEDs','Motors','Observatory'];
+export const CAMPAIGN_UNITS=['Tutorial','Resistors','Capacitors','LEDs','Motors','Relays','Transistors','Comparators','Logic','Observatory'];
 export function chapterGateLevel(unitName){
  const unitIdx=CAMPAIGN_UNITS.indexOf(unitName);
  if(unitIdx<=0)return null;

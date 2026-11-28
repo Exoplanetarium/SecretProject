@@ -59,30 +59,19 @@ export default function Workshop(){
   }
   let cancelled=false,dispose;
   async function start(){
-   let accountProgress=null,cloudReady=false,cloudError=false,workshopMod;
-   if(effectiveUserId){
-    setLoadStage('Syncing saved builds…');
-    setLoadProgress(48);
-    const [mod,progressResult]=await Promise.all([
-     loadWorkshopModule(),
-     fetchCloudProgress()
-    ]);
-    workshopMod=mod;
-    ({accountProgress=null,cloudReady=false,cloudError=false}=progressResult);
-   }else{
-    setLoadStage('Opening workbench…');
-    setLoadProgress(48);
-    workshopMod=await loadWorkshopModule();
-   }
+   setLoadStage(effectiveUserId?'Opening saved workbench…':'Opening workbench…');
+   setLoadProgress(48);
+   const workshopMod=await loadWorkshopModule();
    if(cancelled)return;
    setLoadStage('Setting up components…');
    setLoadProgress(82);
    try{
     dispose=workshopMod.initWorkshop({
      userId:effectiveUserId,
-     accountProgress,
-     cloudReady,
-     cloudError,
+     accountProgress:null,
+     cloudReady:false,
+     cloudError:false,
+     deferCloudSync:Boolean(effectiveUserId),
      onReady:()=>{
       if(!cancelled){
        setLoadProgress(100);
@@ -97,6 +86,11 @@ export default function Workshop(){
      setStarted(true);
     }
    }
+   if(effectiveUserId&&!cancelled){
+    void fetchCloudProgress().then(result=>{
+     if(!cancelled)dispose?.applyCloudProgress?.(result);
+    });
+   }
   }
   setStarted(false);
   setShowLoader(true);
@@ -110,7 +104,7 @@ export default function Workshop(){
   return ()=>clearTimeout(timer);
  },[started]);
  return <div id="workshop">
- <header><button className="brand" id="home" aria-label="Home"><Icon name="wire"/>little circuit<span>.</span></button><div id="progress" hidden aria-label="Level progress"/><div id="account-controls">{isLoaded&&(isSignedIn?<><span id="account-save-status" className="account-save-label">Account saves</span><UserButton/></>:<><SignInButton mode="modal"><button className="account-button">Sign in</button></SignInButton><SignUpButton mode="modal"><button className="account-button account-primary">Create account</button></SignUpButton></>)}</div><button id="library-button" className="library-pill" title="The Library" aria-label="The Library"><Icon name="library"/><span id="library-count">7 / 26</span></button><button id="master-button" className="master-pill" title="Master Challenges" aria-label="Master Challenges"><Icon name="master"/><span id="master-count">0 / 7</span></button><button id="mainframe-button" className="mainframe-pill" title="Observatory Mainframe" aria-label="Observatory Mainframe"><Icon name="observatory"/><span id="mainframe-count">0 / 11</span></button><button id="guide-button" className="tool" title="Levels" aria-label="Levels"><Icon name="levels"/></button></header>
+ <header><button className="brand" id="home" aria-label="Home"><Icon name="wire"/>little circuit<span>.</span></button><div id="progress" hidden aria-label="Level progress"/><div id="account-controls">{isLoaded&&(isSignedIn?<><span id="account-save-status" className="account-save-label">Account saves</span><UserButton/></>:<><SignInButton mode="modal"><button className="account-button">Sign in</button></SignInButton><SignUpButton mode="modal"><button className="account-button account-primary">Create account</button></SignUpButton></>)}</div><button id="library-button" className="library-pill" title="The Library" aria-label="The Library"><Icon name="library"/><span id="library-count">7 / 27</span></button><button id="master-button" className="master-pill" title="Master Challenges" aria-label="Master Challenges"><Icon name="master"/><span id="master-count">0 / 7</span></button><button id="mainframe-button" className="mainframe-pill" title="Observatory Mainframe" aria-label="Observatory Mainframe"><Icon name="observatory"/><span id="mainframe-count">0 / 15</span></button><button id="guide-button" className="tool" title="Levels" aria-label="Levels"><Icon name="levels"/></button></header>
  <main id="game" hidden><aside className="sidebar"><span id="unit-name" className="unit-name">Tutorial</span><div className="level-heading"><span id="level-number">01 / 05</span><span id="goal-icon" aria-label="Incomplete">○</span></div><h1 id="level-title">Complete circuit</h1>
  <span id="completion-status" className="sr-only" role="status"/>
  <section id="win" className="completion-card" aria-labelledby="completion-title" hidden>

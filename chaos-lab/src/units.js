@@ -3,9 +3,13 @@ import {activities} from './activities.js';
 export const units=[
  {name:'Tutorial',label:'Tutorial'}, {name:'Resistors',label:'Chapter 1 · Resistors'},
  {name:'Capacitors',label:'Chapter 2 · Capacitors',theme:'radio'},
- {name:'LEDs',label:'Chapter 3 · LEDs',theme:'theater'},
+ {name:'LEDs',label:'Chapter 3 · Diodes & LEDs',theme:'theater'},
  {name:'Motors',label:'Chapter 4 · Motors',theme:'factory'},
- {name:'Observatory',label:'Chapter 5 · Observatory',theme:'observatory'},
+ {name:'Relays',label:'Chapter 5 · Relays',theme:'factory'},
+ {name:'Transistors',label:'Chapter 6 · Transistors',theme:'radio'},
+ {name:'Comparators',label:'Chapter 7 · Smart Triggers',theme:'greenhouse'},
+ {name:'Logic',label:'Chapter 8 · Logic Chips',theme:'observatory'},
+ {name:'Observatory',label:'Chapter 9 · Memory & Counters',theme:'observatory'},
  {name:'Library',label:'The Library'},
  {name:'Master',label:'Master Challenges',theme:'proving'},
  {name:'Workshop',label:'Workshop',theme:'greenhouse'}

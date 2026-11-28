@@ -22,7 +22,7 @@ import { createSoundEngine } from './sound.js';
 import { createFirstLightScene } from './first-light.js';
 import { createBoardHistory } from './history.js';
 import { LAYER_HEIGHT, MAX_LAYERS, clampLayer, layerY, SANDBOX_CATEGORIES, filterSandboxParts, normalizeSandboxSlots, mergeSandboxSlots, probePartReading } from './sandbox.js';
-export function initWorkshop({ userId = null, accountProgress = null, cloudReady = false, cloudError = false, onReady = null } = {}) {
+export function initWorkshop({ userId = null, accountProgress = null, cloudReady = false, cloudError = false, deferCloudSync = false, onReady = null } = {}) {
   const events = new AbortController();
   const listen = (target, type, fn, options = {}) => target.addEventListener(type, fn, typeof options === 'boolean' ? { capture: options, signal: events.signal } : { ...options, signal: events.signal });
 
@@ -32,7 +32,8 @@ export function initWorkshop({ userId = null, accountProgress = null, cloudReady
   let circuitState = null, hoverTerminal = null, lessonStep = 0, skipTeaching = false, wonThisVisit = false, panMode = false, simActive = false;
   let firstLight = null, firstLightScore = null, firstLightTimer = null;
   const buttonTimers = new Map();
-  let level = 0, lastLevel = null, parts = [], wires = [], powered = false, selected = null, pending = null, drag = null, serial = 0, completed = [], boards = {}, sound = true, explosiveShorts = false, faultLatched = false, recentBlast = false, blastTimer = null, toastTimer, branchProof = false, game = false, cloudSaveTimer = null, cloudRetryTimer = null, cloudSavePending = null, cloudSaveInFlight = false, cloudSaveDisabled = false, cloudRetryCount = 0, cloudNeedsInitialSync = false;
+  let level = 0, lastLevel = null, parts = [], wires = [], powered = false, selected = null, pending = null, drag = null, serial = 0, completed = [], boards = {}, sound = true, explosiveShorts = false, faultLatched = false, recentBlast = false, blastTimer = null, toastTimer, branchProof = false, game = false, cloudSaveTimer = null, cloudRetryTimer = null, cloudSavePending = null, cloudSaveInFlight = false, cloudSaveDisabled = false, cloudRetryCount = 0, cloudNeedsInitialSync = false, cloudMergedFromServer = Boolean(cloudReady), cloudDirty = false;
+  const editedLevelsThisSession = new Set();
   const lastKey = userId ? `little-circuit-last:user:${userId}` : 'little-circuit-last';
   const shortModeKey = 'little-circuit-short-mode';
   const soundKey = 'little-circuit-sound';
@@ -205,6 +206,7 @@ export function initWorkshop({ userId = null, accountProgress = null, cloudReady
     if (kind === 'fuse') return (part?.fuseRating || 0.35).toFixed(2) + ' A';
     if (kind === 'diode') return '0.7 V';
     if (kind === 'meter') return '±6 V';
+    if (kind === 'comparator') return '+ > − → 6 V';
     if (kind === 'cannon') return '1 shot / 2.4 s';
     return '';
   }
@@ -484,10 +486,12 @@ export function initWorkshop({ userId = null, accountProgress = null, cloudReady
   }
   async function flushCloudSave({ unloading = false } = {}) {
     if (!userId || cloudSaveDisabled || !cloudSavePending || cloudSaveInFlight) return;
-    const body = cloudSavePending; cloudSavePending = null;
+    const payload = cloudSavePending; cloudSavePending = null;
     cloudSaveInFlight = true;
+    const shouldSkipMerge = cloudMergedFromServer;
     if (!unloading) setCloudStatus('syncing', 'Syncing…');
     try {
+      const body = JSON.stringify({ userId, progress: payload, skipMerge: shouldSkipMerge });
       const byteLen = new TextEncoder().encode(body).byteLength;
       const opts = {
         method: 'PUT',
@@ -510,6 +514,8 @@ export function initWorkshop({ userId = null, accountProgress = null, cloudReady
       if (!response.ok) throw new Error(`Cloud progress request failed with status ${response.status}.`);
       cloudRetryCount = 0;
       cloudReady = true;
+      cloudMergedFromServer = true;
+      if (!cloudSavePending) cloudDirty = false;
       setCloudStatus('saved', 'Saved to account');
       const resData = await response.json().catch(() => null);
       if (resData?.progress) {
@@ -522,7 +528,8 @@ export function initWorkshop({ userId = null, accountProgress = null, cloudReady
         } catch { }
       }
     } catch (error) {
-      if (!cloudSavePending) cloudSavePending = body;
+      if (!cloudSavePending) cloudSavePending = payload;
+      cloudDirty = true;
       console.error('Cloud progress save failed; the local account save is still available.', error);
       if (!unloading && !cloudSaveDisabled) {
         if (cloudRetryCount < 3) {
@@ -570,12 +577,15 @@ export function initWorkshop({ userId = null, accountProgress = null, cloudReady
       console.error('Unable to save progress on this device.', error);
       return;
     }
-    if (userId && !localOnly && !cloudSaveDisabled) {
-      cloudSavePending = JSON.stringify({ userId, progress });
-      clearTimeout(cloudSaveTimer);
-      clearTimeout(cloudRetryTimer);
-      if (immediate) void flushCloudSave();
-      else cloudSaveTimer = setTimeout(() => { void flushCloudSave(); }, 450);
+    if (userId && !cloudSaveDisabled) {
+      cloudDirty = true;
+      if (!localOnly) {
+        cloudSavePending = progress;
+        clearTimeout(cloudSaveTimer);
+        clearTimeout(cloudRetryTimer);
+        if (immediate) void flushCloudSave();
+        else cloudSaveTimer = setTimeout(() => { void flushCloudSave(); }, 3500);
+      }
     }
   }
   function persistSandboxSlots() {
@@ -644,6 +654,7 @@ export function initWorkshop({ userId = null, accountProgress = null, cloudReady
   }
   function saveState(quiet = true, opts = {}) {
     if (!game) return;
+    if (!opts.localOnly) editedLevelsThisSession.add(level);
     const snap = snapshotBoard();
     if (!opts.skipHistory) {
       boardHistory.record(snap, opts.coalesceTag || null);
@@ -666,7 +677,7 @@ export function initWorkshop({ userId = null, accountProgress = null, cloudReady
     else toast('Sign in to unlock all chapters');
   }
   function showGuide() {
-    saveState();
+    saveState(true, { localOnly: true });
     const banner = $('guide-banner');
     if (banner) {
       banner.replaceChildren();
@@ -1172,12 +1183,12 @@ export function initWorkshop({ userId = null, accountProgress = null, cloudReady
     const before = solveCircuit(parts, wires); p.closed = !p.closed; sfx.play(p.closed ? 'switchOn' : 'switchOff'); p.lever.rotation.x = p.closed ? 0 : -.55; const after = solveCircuit(parts, wires);
     const motor = parts.find(part => part.kind === 'motor');
     if (powered && !p.closed && motor && circuitState.halfSpeed && Math.abs(before.currents[p.id] || 0) > .09 && Math.abs(after.currents[motor.id] || 0) < .001) history.stopped = true;
-    if (powered && LEVELS[level].id === 'branches' && !before.short && !after.short && ((before.lit === 1 && after.lit === 2) || (before.lit === 2 && after.lit === 1))) branchProof = true; select(p); updateCircuit(0, { before, switched: p }); saveState();
+    if (powered && LEVELS[level].id === 'branches' && !before.short && !after.short && ((before.lit === 1 && after.lit === 2) || (before.lit === 2 && after.lit === 1))) branchProof = true; select(p); updateCircuit(0, { before, switched: p }); saveState(true, { localOnly: true });
   }
   function toggleSpdt(p) {
     p.throwB = !p.throwB;
     sfx.play(p.throwB ? 'switchOn' : 'switchOff');
-    select(p); updateCircuit(); saveState();
+    select(p); updateCircuit(); saveState(true, { localOnly: true });
   }
   function select(p) {
     selected = p; $('selection').hidden = !p; if (!p) return;
@@ -1253,7 +1264,9 @@ export function initWorkshop({ userId = null, accountProgress = null, cloudReady
                     ? { dial: 0 }
                     : kind === 'transistor'
                       ? { conducting: false }
-                      : kind === 'battery'
+                      : kind === 'comparator'
+                        ? { outputHigh: false }
+                        : kind === 'battery'
                         ? { voltage: 6 }
                         : {};
     const p = makePart({ id: 'p' + (++serial), kind, role, ...location, layer, rotation: 0, closed: false, resistance: 30, ...extra }); parts.push(p); select(p); updateCircuit(); saveState(); sfx.play('place'); return p;
@@ -1361,8 +1374,8 @@ export function initWorkshop({ userId = null, accountProgress = null, cloudReady
     sfx.play('ui');
   }
   function startLevel(i, restart = false, skipPreSave = false) {
-    if (game && !restart && !skipPreSave) saveState(); game = true; level = i; activeLayer = 0; setRoom(); lessonStep = 0; skipTeaching = false; wonThisVisit = false; resetParts(); updateMainframeBadge(); updateLibraryBadge(); updateMasterBadge(); setPanMode(false); $('landing').hidden = true; $('game').hidden = false; $('viewport').append(renderer.domElement); $('win').hidden = true; $('completion-status').textContent = ''; $('hint').hidden = true; const l = LEVELS[i];
-    if (l.id !== 'sandbox') { lastLevel = i; writeProgress({ quiet: true, immediate: false }); }
+    if (game && !restart && !skipPreSave) saveState(true, { localOnly: true }); game = true; level = i; activeLayer = 0; setRoom(); lessonStep = 0; skipTeaching = false; wonThisVisit = false; resetParts(); updateMainframeBadge(); updateLibraryBadge(); updateMasterBadge(); setPanMode(false); $('landing').hidden = true; $('game').hidden = false; $('viewport').append(renderer.domElement); $('win').hidden = true; $('completion-status').textContent = ''; $('hint').hidden = true; const l = LEVELS[i];
+    if (l.id !== 'sandbox') { lastLevel = i; writeProgress({ quiet: true, localOnly: true }); }
     if (isFree() && !restart) {
       const activeSlot = sandboxSlots.slots[sandboxSlots.active];
       if (activeSlot && (activeSlot.parts.length || !boards[i])) {
@@ -1433,7 +1446,7 @@ export function initWorkshop({ userId = null, accountProgress = null, cloudReady
     }
     if (pending) { const layer = isFree() ? activeLayer : 0; const p = boardPoint(e, layer), a = terminalPosition(pending); clearPreview(); if (a && p) { preview = wireMesh(a, new THREE.Vector3(p.x, layerY(layer) + .46, p.z), '#cda357'); scene.add(preview); } renderer.domElement.style.cursor = 'crosshair'; hoveredPart = null; renderHoverProbe(); return; } if (drag) { const layer = clampLayer(drag.p.layer); const pos = boardPoint(e, layer); if (!pos || !drag.start) return; if (!drag.moved && Math.hypot(e.clientX - drag.px, e.clientY - drag.py) > 5) { drag.moved = true; if (drag.p.kind === 'button' && drag.p.closed) { drag.p.closed = false; updateCircuit(); } } const { x, z } = boardPosition(drag.x + pos.x - drag.start.x, drag.z + pos.z - drag.start.z, isFree(), drag.p.kind, inReadingRoom(), drag.p.rotation || 0); if (fits(x, z, drag.p.kind, drag.p, drag.p.rotation || 0, layer)) { Object.assign(drag.p, { x, z }); drag.p.mesh.position.set(x, layerY(layer), z); redrawWires(); if (drag.p.kind === 'photo') updateCircuit(); } hoveredPart = null; renderHoverProbe(); return; } const h = hits(e); hoverTerminal = h.find(v => v.object.userData.terminal)?.object.userData.terminal || null; let hoverObj = h[0]?.object; while (hoverObj && !hoverObj.userData.part) hoverObj = hoverObj.parent; hoveredPart = hoverObj?.userData.part || null; renderHoverProbe(); renderer.domElement.style.cursor = hoverTerminal ? 'crosshair' : h.length ? 'grab' : 'default';
   });
-  function endPointer() { shadeDrag = null; if (drag) { if (drag.p.kind === 'switch' && !drag.moved) { toggleSwitch(drag.p); } else if (drag.p.kind === 'spdt' && !drag.moved) { toggleSpdt(drag.p); } else if (drag.p.kind === 'button' && !drag.moved) { const btn = drag.p, remain = Math.max(0, 260 - (performance.now() - (btn.pressedAt || 0))); clearTimeout(buttonTimers.get(btn.id)); if (remain <= 15) { btn.closed = false; updateCircuit(); } else { buttonTimers.set(btn.id, setTimeout(() => { buttonTimers.delete(btn.id); btn.closed = false; updateCircuit(); }, remain)); } } saveState(); drag = null; } controls.enabled = true; }
+  function endPointer() { shadeDrag = null; if (drag) { if (drag.p.kind === 'switch' && !drag.moved) { toggleSwitch(drag.p); } else if (drag.p.kind === 'spdt' && !drag.moved) { toggleSpdt(drag.p); } else if (drag.p.kind === 'button' && !drag.moved) { const btn = drag.p, remain = Math.max(0, 260 - (performance.now() - (btn.pressedAt || 0))); clearTimeout(buttonTimers.get(btn.id)); if (remain <= 15) { btn.closed = false; updateCircuit(); } else { buttonTimers.set(btn.id, setTimeout(() => { buttonTimers.delete(btn.id); btn.closed = false; updateCircuit(); }, remain)); } } saveState(true, { localOnly: !drag.moved }); drag = null; } controls.enabled = true; }
   listen(renderer.domElement, 'pointerup', e => {
     if (pliersActive) {
       const lead = grip?.lead;
@@ -1474,6 +1487,7 @@ export function initWorkshop({ userId = null, accountProgress = null, cloudReady
       if (p.kind === 'latch') { p.prevClk = null; if (LEVELS[level].id === 'mainframe-boot' && powered) p.bit = 0; }
       if (p.kind === 'clock' && (!powered || LEVELS[level].id === 'mainframe-boot')) { p.phase = 0; p.high = false; }
       if (p.kind === 'transistor') { p.transTimer = 0; if (!powered) p.conducting = false; }
+      if (p.kind === 'comparator') { p.compTimer = 0; if (!powered) p.outputHigh = false; }
       if (p.kind === 'cannon') p.discharging = false;
       if (p.kind === 'battery' && p.rogue && !powered) { p.reversed = false; showPolarity(p); }
     }
@@ -1592,26 +1606,27 @@ export function initWorkshop({ userId = null, accountProgress = null, cloudReady
     });
   }
 
+  function flushPendingOnUnload() {
+    saveState(true, { localOnly: true, skipHistory: true });
+    clearTimeout(cloudSaveTimer);
+    if (userId && !cloudSaveDisabled && (cloudSavePending || cloudDirty)) {
+      cloudSavePending ??= encodeProgress(completed, boards, sandboxSlots, { lastLevel, unlockAll, updatedAt: Date.now() });
+      void flushCloudSave({ unloading: true });
+    }
+  }
   const onControlsEnd = () => saveState(true, { skipHistory: true, localOnly: true });
   controls.addEventListener('end', onControlsEnd);
   listen(window, 'online', () => { cloudRetryCount = 0; if (cloudSavePending && !cloudSaveDisabled) void flushCloudSave(); });
   listen(document, 'visibilitychange', () => {
-    if (document.visibilityState === 'hidden') {
-      saveState(true, { localOnly: true, skipHistory: true });
-      clearTimeout(cloudSaveTimer);
-      if (cloudSavePending) void flushCloudSave({ unloading: true });
-    }
+    if (document.visibilityState === 'hidden') flushPendingOnUnload();
   });
-  listen(window, 'pagehide', () => {
-    saveState(true, { localOnly: true, skipHistory: true });
-    clearTimeout(cloudSaveTimer);
-    if (cloudSavePending) void flushCloudSave({ unloading: true });
-  });
+  listen(window, 'pagehide', flushPendingOnUnload);
   if (userId) {
-    if (cloudNeedsInitialSync) writeProgress({ quiet: true, immediate: true });
+    if (deferCloudSync) setCloudStatus('syncing', 'Syncing…');
+    else if (cloudNeedsInitialSync) writeProgress({ quiet: true, immediate: true });
     else if (cloudError) setCloudStatus('warn', 'Saved locally');
   }
-  hero(); resize(); updateMainframeBadge(); updateLibraryBadge(); updateMasterBadge(); if (cloudError && !cloudNeedsInitialSync) toast('Cloud load timed out. Saved on this device.');
+  hero(); resize(); updateMainframeBadge(); updateLibraryBadge(); updateMasterBadge(); if (cloudError && !cloudNeedsInitialSync && !deferCloudSync) toast('Cloud load timed out. Saved on this device.');
   const queryParams = new URLSearchParams(window.location.search);
   const requestedUnit = queryParams.get('unit')?.toLowerCase();
   const entry = LEVELS.findIndex(l => unitOf(l).theme && l.unit.toLowerCase() === requestedUnit);
@@ -1653,5 +1668,51 @@ export function initWorkshop({ userId = null, accountProgress = null, cloudReady
     if (game && (LEVELS[level].machine || LEVELS[level].unit === 'Observatory' || LEVELS[level].master) && fixture) fixture.update(activity, parts, circuitState, powered, mainframeProgress(completed, LEVELS));
     controls.update(); updateSurface(); ground.position.x = controls.target.x; ground.position.z = controls.target.z; sun.position.set(controls.target.x - 6, 14, controls.target.z + 8); sun.target.position.set(controls.target.x, 0, controls.target.z); for (const p of parts) for (let i = 0; i < p.rings.length; i++) { const active = game && (pending === p.id + ':' + i || hoverTerminal === p.id + ':' + i || !skipTeaching && level === 0 && lessonStep >= 3 && lessonStep <= 5); p.rings[i].material.opacity = active ? .7 + Math.sin(time * .006) * .3 : 0; } for (const wire of wireGroup.children) { const e = wire.userData.endpoints, current = powered && circuitState && e ? (circuitState.voltages[e.a] - circuitState.voltages[e.b]) / .01 : 0; wire.children.forEach((bead, i) => { bead.visible = powered && Math.abs(current) > .01; if (bead.visible) { const t = ((time * .00012 * Math.sign(current) + i / 3) % 1 + 1) % 1; bead.position.copy(wire.userData.curve.getPoint(t)); } }); } const shaking = shortEffects.getCameraOffset(shakeOffset); if (shaking) camera.position.add(shakeOffset); activeRoom?.draw(renderer, camera); renderer.render(scene, camera); if (shaking) camera.position.sub(shakeOffset); if (!readySent) { readySent = true; onReady?.(); }
   });
-  return () => { saveState(true, { localOnly: true, skipHistory: true }); clearTimeout(firstLightTimer); stopFirstLight(); clearTimeout(cloudSaveTimer); clearTimeout(cloudRetryTimer); if (cloudSavePending) void flushCloudSave({ unloading: true }); events.abort(); observer.disconnect(); clearTimeout(toastTimer); clearTimeout(blastTimer); for (const t of buttonTimers.values()) clearTimeout(t); buttonTimers.clear(); sfx.dispose(); shortEffects.dispose(); document.querySelectorAll('.drag-ghost').forEach(e => e.remove()); renderer.setAnimationLoop(null); controls.removeEventListener('end', onControlsEnd); controls.dispose(); fixture?.dispose(); readingRoom?.dispose(); for (const room of rooms.values()) room.dispose(); paintedTop.dispose(); paintedFrame.dispose(); const materials = new Set(), geometries = new Set(), textures = new Set(); scene.traverse(o => { if (o.geometry) geometries.add(o.geometry); if (o.material) for (const m of Array.isArray(o.material) ? o.material : [o.material]) { materials.add(m); for (const v of Object.values(m)) if (v?.isTexture) textures.add(v); } }); geometries.forEach(g => g.dispose()); textures.forEach(t => t.dispose()); materials.forEach(m => m.dispose()); sun.shadow.dispose(); renderer.dispose(); renderer.domElement.remove(); for (const e of document.querySelectorAll('#workshop button,#workshop input,#workshop select')) { e.onclick = null; e.oninput = null; e.onchange = null; } };
+  function applyCloudProgress({ accountProgress: serverProg = null, cloudReady: ready = false, cloudError: err = false } = {}) {
+    if (!userId) return;
+    if (err || !ready) {
+      cloudError = true;
+      setCloudStatus('warn', 'Saved locally');
+      return;
+    }
+    cloudError = false;
+    cloudReady = true;
+    cloudMergedFromServer = true;
+    const localCurrent = encodeProgress(completed, boards, sandboxSlots, { lastLevel, unlockAll, updatedAt: Date.now() });
+    const merged = mergeProgress(serverProg, localCurrent);
+    const restored = restoreProgress(merged);
+    for (const idx of restored.completed) {
+      if (!completed.includes(idx)) completed.push(idx);
+    }
+    unlockAll = unlockAll || restored.unlockAll;
+    for (const [key, board] of Object.entries(restored.boards)) {
+      const idx = Number(key);
+      if (!editedLevelsThisSession.has(idx) && (!game || idx !== level)) {
+        boards[idx] = board;
+      }
+    }
+    sandboxSlots = mergeSandboxSlots(restored.sandboxSlots, sandboxSlots);
+    if (lastLevel === null && restored.lastLevel !== null) lastLevel = restored.lastLevel;
+    try {
+      localStorage.setItem(`little-circuit-v5:user:${userId}`, JSON.stringify(merged));
+      if (lastLevel !== null && LEVELS[lastLevel]) localStorage.setItem(lastKey, LEVELS[lastLevel].id);
+      if (unlockKey) localStorage.setItem(unlockKey, unlockAll ? '1' : '0');
+      localStorage.setItem(slotsKey, JSON.stringify(sandboxSlots));
+    } catch { }
+    updateMainframeBadge(); updateLibraryBadge(); updateMasterBadge();
+    if (game) updateProgress();
+    if (game && isFree() && !editedLevelsThisSession.has(level)) renderSandboxSlots();
+    if ($('guide')?.open) showGuide();
+    if (needsCloudSync(merged, serverProg) || cloudSavePending || cloudDirty) {
+      cloudSavePending = merged;
+      clearTimeout(cloudSaveTimer);
+      void flushCloudSave();
+    } else {
+      cloudDirty = false;
+      setCloudStatus('saved', 'Saved to account');
+    }
+  }
+  const cleanup = () => { flushPendingOnUnload(); clearTimeout(firstLightTimer); stopFirstLight(); clearTimeout(cloudSaveTimer); clearTimeout(cloudRetryTimer); events.abort(); observer.disconnect(); clearTimeout(toastTimer); clearTimeout(blastTimer); for (const t of buttonTimers.values()) clearTimeout(t); buttonTimers.clear(); sfx.dispose(); shortEffects.dispose(); document.querySelectorAll('.drag-ghost').forEach(e => e.remove()); renderer.setAnimationLoop(null); controls.removeEventListener('end', onControlsEnd); controls.dispose(); fixture?.dispose(); readingRoom?.dispose(); for (const room of rooms.values()) room.dispose(); paintedTop.dispose(); paintedFrame.dispose(); const materials = new Set(), geometries = new Set(), textures = new Set(); scene.traverse(o => { if (o.geometry) geometries.add(o.geometry); if (o.material) for (const m of Array.isArray(o.material) ? o.material : [o.material]) { materials.add(m); for (const v of Object.values(m)) if (v?.isTexture) textures.add(v); } }); geometries.forEach(g => g.dispose()); textures.forEach(t => t.dispose()); materials.forEach(m => m.dispose()); sun.shadow.dispose(); renderer.dispose(); renderer.domElement.remove(); for (const e of document.querySelectorAll('#workshop button,#workshop input,#workshop select')) { e.onclick = null; e.oninput = null; e.onchange = null; } };
+  cleanup.applyCloudProgress = applyCloudProgress;
+  return cleanup;
 }

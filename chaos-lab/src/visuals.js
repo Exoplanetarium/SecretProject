@@ -1,4 +1,8 @@
 import { observatorySketches } from './observatory.js';
+import { transistorSketches } from './transistors.js';
+import { foundationSketches } from './foundations.js';
+import { comparatorSketches } from './comparators.js';
+import { logicSketches } from './logic-unit.js';
 import { librarySketches } from './library.js';
 import { masterSketches } from './master.js';
 const paths = {
@@ -51,6 +55,7 @@ const paths = {
     fuse: '<rect x="6" y="7" width="12" height="10" rx="4"/><path d="M2 12h4m12 0h4M8 12c1.5-3 2.5 3 4 0s2.5 3 4 0"/>',
     meter: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 14a6 6 0 0 1 10 0m-5 0 3-5"/>',
     transistor: '<circle cx="13" cy="12" r="7.5"/><path d="M2 12h7m0-5v10m0-7 7-5m-7 9 7 5m-3-1 3 1-1-3"/>',
+    comparator: '<path d="M2 8h4M2 16h4M6 4l13 8-13 8ZM19 12h3M8.5 9h3M10 7.5v3M8.5 15h3"/>',
     cannon: '<rect x="3" y="13" width="9" height="6" rx="2"/><path d="M9 14 19 6l2 3-9 8M2 19h14"/><circle cx="20" cy="4" r="2"/>',
     master: '<path d="M8 4h8v5a4 4 0 0 1-8 0ZM8 6H5a2 2 0 0 0 0 4h3M16 6h3a2 2 0 0 1 0 4h-3M12 13v5M8 20h8"/>',
     library: '<path d="M4 5h6a2 2 0 0 1 2 2v13a2 2 0 0 0-2-2H4Zm16 0h-6a2 2 0 0 0-2 2v13a2 2 0 0 1 2-2h6Z"/>',
@@ -93,8 +98,7 @@ const sketchLed = '<path d="M0-12v5m-6 0H6L0 5ZM-6 5H6M0 5v7m8-14 6-5m-4 0h4v4m-
 const supply = '<path d="M30 19v23m-10 0h20m-16 8h12m-6 0v36"/><text x="40" y="37">+</text>';
 const crate = '<rect x="-12" y="-22" width="24" height="22" rx="1"/><path d="m-9-3 18-16M-9-19 9-3"/>';
 function compareLoop(x, farads) {
-    return placed(x, 0, `<path d="M-22 31V20
-    ......... h45v20m0 22v15h-45V55"/>${placed(-22, 43, sketchCap)}${placed(23, 51, sketchLamp)}${sketchLabel(0, 98, farads)}`);
+    return placed(x, 0, `<path d="M-22 31V20h45v20m0 22v15h-45V55"/>${placed(-22, 43, sketchCap)}${placed(23, 51, sketchLamp)}${sketchLabel(0, 98, farads)}`);
 }
 function conveyor(width) {
     return `<rect x="0" y="0" width="${width}" height="18" rx="9"/><circle cx="9" cy="9" r="4"/><circle cx="${width - 9}" cy="9" r="4"/><path d="M20 9h${width - 40}" stroke-dasharray="4 7"/>`;
@@ -102,8 +106,8 @@ function conveyor(width) {
 const activitySketches = {
     'light-meter': ['Light falling on a photoresistor connected across an ohmmeter',
         `<path d="M54 42h37v10h36m36 0h10v30H42V54"/><circle cx="42" cy="42" r="12"/>${sketchLabel(42, 47, 'Ω')}<circle cx="145" cy="52" r="18"/><path d="M127 52h9l3-6 5 12 5-12 4 6h10M116 14l14 17m-7-2 7 2-1-7m1-15 13 17m-7-2 7 2-1-7"/>`],
-    'house-breaker': ['Reading lamp on its own branch and two stair lamps in series with a resistor',
-        `${supply}<path d="M30 19h144v13m0 40v14H30m50-67v22m0 22v23"/>${placed(80, 52, sketchLamp)}${placed(174, 42, sketchLamp)}${placed(174, 64, sketchLamp)}<path d="M108 19l4-6 5 12 5-12 5 12 4-6"/><path class="paper-cut" d="M107 19h28"/>${sketchLabel(126, 98, '≤ 0.42 A')}`],
+    'house-breaker': ['Reading lamp on its own branch and two stair lamps in series, asking where to put the resistor',
+        `<path d="M28 12v24m-10 0h20m-16 8h12m-6 0v32"/><text class="obs-lbl" x="39" y="32" text-anchor="middle">+</text><path d="M28 12h140v11m0 20v2m0 20v11H28M82 12v22m0 20v22"/><circle class="obs-dot" cx="82" cy="12" r="2.1"/><circle class="obs-dot" cx="82" cy="76" r="2.1"/>${placed(82, 44, '<circle r="10"/><path d="m-7-7 14 14m-14 0L7-7"/>')}${placed(168, 33, '<circle r="10"/><path d="m-7-7 14 14m-14 0L7-7"/>')}${placed(168, 55, '<circle r="10"/><path d="m-7-7 14 14m-14 0L7-7"/>')}<text class="obs-sm" x="100" y="95" text-anchor="middle">Where would you put the resistor?</text>`],
     'capacity-compare': ['Two separate lamp circuits, with a 0.10 F and a 0.22 F capacitor',
         compareLoop(49, '0.10 F') + compareLoop(149, '0.22 F')],
     'timer-bell': ['A timer set to three seconds and a bell with a three volt threshold',
@@ -116,8 +120,8 @@ const activitySketches = {
         `<rect x="23" y="20" width="70" height="43" rx="6"/><circle cx="58" cy="41" r="15"/><circle cx="54" cy="43" r="3" fill="#bf5145"/><circle cx="58" cy="35" r="3" fill="#55916e"/><circle cx="63" cy="43" r="3" fill="#5279af"/><path d="M32 63v10m17-10v10m17-10v10m17-10v10m22-33 44-18m-44 25 44 17"/>${['R', 'G', 'B', '−'].map((c, i) => sketchLabel(32 + i * 17, 90, c)).join('')}<ellipse cx="158" cy="44" rx="15" ry="24" fill="#b663a2" fill-opacity=".7"/>`],
     'rgb-fade': ['Red and blue channels fade as a capacitor discharges',
         `${placed(30, 45, sketchCap)}<path d="M30 33V19h26m-26 38v22h26M84 14v65h90"/>${sketchLabel(66, 43, 'mA')}<path d="M84 23c19 0 28 20 47 37s28 16 43 17" stroke="#af514b"/><path d="M84 25c12 0 20 25 31 41s20 12 27 13" stroke="#526fa5" stroke-dasharray="4 3"/>${sketchLabel(137, 97, 'Time')}`],
-    'cable-tester': ['A two-contact test socket and a pair of opposed indicators',
-        `<rect x="14" y="32" width="54" height="39" rx="6"/><circle cx="29" cy="52" r="4"/><circle cx="53" cy="52" r="4"/><path d="M29 48V17h128v21m0 24v25H53V56M104 17v21m0 24v25"/>${placed(104, 50, sketchLed)}${placed(157, 50, sketchLed, 180)}`],
+    'cable-tester': ['Test socket pointing to three mystery cables A, B, and C to identify Forward, Reverse, or Dead',
+        `<rect x="14" y="28" width="46" height="36" rx="5"/><circle cx="27" cy="46" r="3.5"/><circle cx="47" cy="46" r="3.5"/><text class="obs-sm" x="37" y="22" text-anchor="middle">Socket</text><path d="M66 46h22m-5-4 5 4-5 4"/><rect x="96" y="12" width="88" height="18" rx="4"/><rect x="96" y="37" width="88" height="18" rx="4"/><rect x="96" y="62" width="88" height="18" rx="4"/><text class="obs-sm" x="140" y="24" text-anchor="middle">Cable A · ?</text><text class="obs-sm" x="140" y="49" text-anchor="middle">Cable B · ?</text><text class="obs-sm" x="140" y="74" text-anchor="middle">Cable C · ?</text><text class="obs-sm" x="100" y="96" text-anchor="middle">Forward · Reverse · Dead</text>`],
     'belt-drive': ['A crate can travel both directions along the belt',
         `${placed(25, 57, conveyor(150))}${placed(100, 56, crate)}<path d="M50 41h28m-22-6-6 6 6 6m66-6h28m-6-6 6 6-6 6M49 75v11m103-11v11"/>`],
     'loaded-drive': ['A geared roller raises a loaded crate on an incline',
@@ -126,6 +130,10 @@ const activitySketches = {
         `<path d="M84 91V69L37 23m25-10 38 38 38-38m25 10-47 46v22"/><path d="M100 70 67 37l-5 5 34 32Z" fill="#b68e50" fill-opacity=".28"/><circle cx="100" cy="72" r="5"/><path d="m106 67 30-30M68 34q32-18 64 0" stroke-dasharray="4 4"/>`],
     'dispatch': ['A loaded conveyor delivers a crate into the selected bin',
         `${placed(15, 57, conveyor(108), -16)}${placed(52, 46, crate, -16)}<path d="m122 33 28 18m-6-1 6 1-2-6m-45 17 14 9m-5-1 5 1-2-5" /><path d="m99 74 4 20h26l4-20m7-17 5 24h27l5-24"/><path d="m151 68 4 4 9-10"/>`],
+    ...foundationSketches,
+    ...transistorSketches,
+    ...comparatorSketches,
+    ...logicSketches,
     ...observatorySketches,
     ...librarySketches,
     ...masterSketches

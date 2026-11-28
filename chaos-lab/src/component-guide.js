@@ -471,6 +471,28 @@ export const COMPONENT_GUIDES = {
       `${basePlate(['C', 'B', 'E'])}<rect x="64" y="24" width="52" height="24" rx="3" fill="#c89e54" stroke="#785822"/><rect x="72" y="34" width="36" height="22" rx="4" fill="#2c313b"/><path d="M76 56l-20 16M90 56v16M104 56l20 16" stroke="#c87d4b" stroke-width="3"/><circle cx="90" cy="43" r="4" fill="#ffb847"/>`
     )
   },
+  comparator: {
+    name: 'Comparator',
+    spec: '6 V on when + > −',
+    summary: 'Works like a voltage balance scale: whenever pin + has higher voltage than pin −, output Q turns ON (6 V). Otherwise Q stays OFF (0 V).',
+    howToUse: [
+      'Always connect 0V to battery − (ground reference).',
+      'Send the voltage you want to watch into + and your target voltage into − (or flip them to invert).',
+      'Wire a lamp, LED, or motor between Q and battery −.'
+    ],
+    terminals: [
+      { pin: '+', name: 'Input +', role: 'Non-inverting sense pin' },
+      { pin: '−', name: 'Input −', role: 'Reference sense pin' },
+      { pin: 'Q', name: 'Output Q', role: '6 V when + > −, else 0 V' },
+      { pin: '0V', name: 'Ground 0V', role: 'Must join battery −' }
+    ],
+    diagramSvg: diagWrap(
+      `<path d="M24 38h34M24 72h34M58 22l68 33-68 33ZM126 55h30"/>${dLbl(70, 44, '+')}${dLbl(70, 72, '−')}${dLbl(146, 47, 'Q')}`
+    ),
+    illustrationSvg: svgWrap(
+      `${basePlate(['+', '−', 'Q', '0V'])}<rect x="44" y="24" width="92" height="44" rx="5" fill="#213a3d" stroke="#c99d53" stroke-width="2"/><text x="90" y="49" text-anchor="middle" font-size="13" font-weight="700" font-family="monospace" fill="#f3dfb0">CMP +&gt;−</text><circle cx="90" cy="60" r="4" fill="#ffbd4a"/>`
+    )
+  },
   coil: {
     name: 'Coil relay',
     spec: '120 Ω coil · 3 V pickup',

@@ -14,7 +14,7 @@ export function layerY(layer = 0) {
 export const SANDBOX_CATEGORIES = [
   { id: 'all', label: 'All' },
   { id: 'basic', label: 'Basic', kinds: ['battery', 'lamp', 'switch', 'resistor', 'capacitor', 'led', 'rail', 'fuse'] },
-  { id: 'control', label: 'Control', kinds: ['button', 'spdt', 'pot', 'diode', 'transistor', 'coil', 'relay', 'photo'] },
+  { id: 'control', label: 'Control', kinds: ['button', 'spdt', 'pot', 'diode', 'transistor', 'comparator', 'coil', 'relay', 'photo'] },
   { id: 'motion', label: 'Motion', kinds: ['motor', 'gear', 'servo', 'rgb', 'bell'] },
   { id: 'logic', label: 'Logic', kinds: ['gate', 'latch', 'clock', 'display', 'meter'] }
 ];
@@ -121,7 +121,7 @@ export function probePartReading(part, state, powered, displayName) {
     v = (state.voltages?.[part.id + ':0'] || 0) - (state.voltages?.[part.id + ':2'] || 0);
   } else if (part.kind === 'spdt') {
     v = (state.voltages?.[part.id + ':0'] || 0) - (state.voltages?.[part.id + ':' + (part.throwB ? 2 : 1)] || 0);
-  } else if (part.kind === 'gate' || part.kind === 'latch') {
+  } else if (part.kind === 'gate' || part.kind === 'latch' || part.kind === 'comparator') {
     v = (state.voltages?.[part.id + ':2'] || 0) - (state.voltages?.[part.id + ':3'] || 0);
   } else if (part.kind === 'display') {
     v = state.displayValues?.[part.id] ?? 0;
@@ -149,6 +149,7 @@ export function probePartReading(part, state, powered, displayName) {
   else if (part.kind === 'resistor') detail = `${part.resistance || 30} Ω`;
   else if (part.kind === 'pot') detail = `Wiper ${Math.round((part.wiper ?? 0.5) * 100)}%`;
   else if (part.kind === 'gate') detail = `${part.gateMode || 'NAND'} · OUT ${part.outputHigh ? 'HIGH' : 'LOW'}`;
+  else if (part.kind === 'comparator') detail = `OUT ${part.outputHigh ? 'HIGH' : 'LOW'}`;
   else if (part.kind === 'latch') detail = `Stored bit ${part.bit ? 1 : 0}`;
   else if (part.kind === 'clock') detail = `${part.clockHz || 1} Hz · ${part.high ? 'HIGH' : 'LOW'}`;
   else if (part.kind === 'display') detail = `Value ${state.displayValues?.[part.id] ?? 0}`;

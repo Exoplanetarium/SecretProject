@@ -326,7 +326,7 @@ test('Toolbelt unlocks, Mainframe progress, and Blueprint SVG track completion a
   assert.deepEqual([...guestEmpty], FREE_BUILD_BASE_PARTS);
   const signedIn = unlockedToolbelt([], LEVELS, true);
   assert.deepEqual([...signedIn], FREE_BUILD_BASE_PARTS);
-  assert.equal(FREE_BUILD_PARTS.length, 26);
+  assert.equal(FREE_BUILD_PARTS.length, 27);
 
   const invIdx = LEVELS.findIndex(l => l.id === 'relay-inverter');
   const nandIdx = LEVELS.findIndex(l => l.id === 'relay-nand');
@@ -340,13 +340,13 @@ test('Toolbelt unlocks, Mainframe progress, and Blueprint SVG track completion a
 
   const prog = mainframeProgress([lampFinal, invIdx, bootIdx], LEVELS);
   assert.equal(prog.feedsOnline, 1);
-  assert.equal(prog.coresOnline, 2);
-  assert.equal(prog.onlineCount, 3);
-  assert.equal(prog.totalCount, 11);
+  assert.equal(prog.coresOnline, 1);
+  assert.equal(prog.onlineCount, 2);
+  assert.equal(prog.totalCount, 15);
   assert.equal(prog.coreBooted, true);
 
   const svg = mainframeBlueprintSvg(prog);
-  assert.ok(svg.includes('bp-dome online') && svg.includes('3 of 11 systems online'));
+  assert.ok(svg.includes('bp-dome online') && svg.includes('2 of 15 systems online'));
 });
 
 test('3D Observatory cabinet and all 7 new part models build, update, and dispose cleanly', () => {
@@ -390,14 +390,42 @@ test('3D Observatory cabinet and all 7 new part models build, update, and dispos
   assert.equal(scene.children.length, 7);
 });
 
-test('Observatory diagrams render clearly with battery terminals on battery-powered levels', () => {
+test('Relay levels form Chapter 5 Relays ending with relay-boss, Motors has 8 levels, Logic Chips has 8 levels, and Memory & Counters has 6 levels', () => {
+  const motorLevels = LEVELS.filter(l => l.unit === 'Motors');
+  assert.equal(motorLevels.length, 8);
+  assert.equal(motorLevels.at(-1).id, 'dispatch');
+
+  const relayLevels = LEVELS.filter(l => l.unit === 'Relays');
+  assert.equal(relayLevels.length, 5);
+  assert.equal(relayLevels.at(-1).id, 'relay-boss');
+  assert.equal(relayLevels.at(-1).challenge, true);
+  for (const id of ['relay-inverter', 'relay-nand', 'relay-clock', 'relay-latch', 'relay-boss']) {
+    assert.ok(relayLevels.some(l => l.id === id), `${id} missing from Relays`);
+    const svg = diagram(id);
+    assert.ok(
+      svg.includes('class="circuit-diagram"') && (id === 'relay-boss' ? svg.includes('Tap Start') && svg.includes('Open Stop') : svg.includes('>+') && svg.includes('>−')),
+      `${id} diagram issue`
+    );
+  }
+
+  const logicLevels = LEVELS.filter(l => l.unit === 'Logic');
+  assert.equal(logicLevels.length, 8);
+  assert.equal(logicLevels.at(-1).id, 'logic-majority');
+  for (const level of logicLevels) {
+    assert.ok(!`${level.title} ${level.goal} ${level.hint} ${level.ending}`.includes('—'), `Em dash in ${level.id}`);
+    const svg = diagram(level.diagram);
+    assert.ok(svg.includes('class="circuit-diagram"') && (level.challenge ? svg.includes('Pass') : svg.includes('>+') && svg.includes('>−')), `${level.id} diagram issue`);
+  }
+
   const obsLevels = LEVELS.filter(l => l.unit === 'Observatory');
   assert.equal(obsLevels.length, 6);
+  assert.equal(obsLevels.at(-1).id, 'mainframe-boot');
   for (const level of obsLevels) {
+    assert.ok(!`${level.title} ${level.goal} ${level.hint} ${level.ending}`.includes('—'), `Em dash in ${level.id}`);
     const svg = diagram(level.diagram);
     assert.ok(svg.includes('class="circuit-diagram"'), `${level.id} missing circuit-diagram`);
     if (level.id === 'mainframe-boot') {
-      for (const token of ['CLK', 'B1', 'B2', 'NOT', '0..3']) {
+      for (const token of ['CLK', '0', '1', '2', '3', 'Auto 2-bit count']) {
         assert.ok(svg.includes(token), `mainframe-boot missing ${token}`);
       }
     } else {
@@ -434,4 +462,235 @@ test('Observatory First Light cinema animates across all 5 acts, stays finite, a
     }
   });
   fl.dispose();
+});
+
+test('Chapter 6 Logic expansions (NAND-OR, 2-to-1 Mux, 2-bit Comparator, 3-bit Shift Register) pass valid circuits and reject invalid ones', () => {
+  // 1. Universal NAND -> OR
+  const nor = bench('logic-nand-or');
+  nor.wire('1:0', '2:0'); nor.wire('1:0', '3:0');
+  nor.wire('2:1', '4:0'); nor.wire('2:1', '4:1');
+  nor.wire('3:1', '5:0'); nor.wire('3:1', '5:1');
+  nor.wire('4:2', '6:0'); nor.wire('5:2', '6:1');
+  nor.wire('6:2', '7:0');
+  for (const [a, b] of [[false, false], [true, false], [false, true], [true, true]]) {
+    nor.parts[1].closed = a; nor.parts[2].closed = b;
+    const s = nor.settle(4);
+    assert.equal(Math.abs(s.currents.p7 || 0) > 0.025, a || b);
+  }
+  assert.equal(nor.activity.passed, true);
+
+  // Reject cheating with an OR gate mode on logic-nand-or
+  const cheat = bench('logic-nand-or');
+  cheat.parts[5].gateMode = 'OR';
+  cheat.wire('1:0', '2:0'); cheat.wire('1:0', '3:0');
+  cheat.wire('2:1', '6:0'); cheat.wire('3:1', '6:1'); cheat.wire('6:2', '7:0');
+  for (const [a, b] of [[false, false], [true, false], [false, true], [true, true]]) {
+    cheat.parts[1].closed = a; cheat.parts[2].closed = b;
+    cheat.settle(4);
+  }
+  assert.equal(cheat.activity.passed, false);
+
+  // 2. 2-to-1 Multiplexer
+  const mux = bench('logic-mux');
+  mux.wire('1:0', '2:0'); mux.wire('1:0', '3:0'); mux.wire('1:0', '4:0');
+  mux.wire('2:1', '5:0'); // NOT(S)
+  mux.wire('5:2', '6:0'); mux.wire('3:1', '6:1'); // ~S & A
+  mux.wire('2:1', '7:0'); mux.wire('4:1', '7:1'); // S & B
+  mux.wire('6:2', '8:0'); mux.wire('7:2', '8:1'); // OR
+  mux.wire('8:2', '9:0');
+  for (const sBit of [false, true]) {
+    for (const aBit of [false, true]) {
+      for (const bBit of [false, true]) {
+        mux.parts[1].closed = sBit;
+        mux.parts[2].closed = aBit;
+        mux.parts[3].closed = bBit;
+        const res = mux.settle(5);
+        assert.equal(Math.abs(res.currents.p9 || 0) > 0.025, sBit ? bBit : aBit);
+      }
+    }
+  }
+  assert.equal(mux.activity.passed, true);
+
+  // 3. 2-bit Equality Comparator
+  const cmp = bench('logic-comparator');
+  cmp.wire('1:0', '2:0'); cmp.wire('1:0', '3:0'); cmp.wire('1:0', '4:0'); cmp.wire('1:0', '5:0');
+  cmp.wire('2:1', '6:0'); cmp.wire('4:1', '6:1'); // XOR(A1, B1)
+  cmp.wire('3:1', '7:0'); cmp.wire('5:1', '7:1'); // XOR(A0, B0)
+  cmp.wire('6:2', '8:0'); cmp.wire('7:2', '8:1'); // NOR
+  cmp.wire('8:2', '9:0');
+  const states = [
+    [0, 0, 0, 0], [0, 1, 0, 1], [1, 0, 1, 0], [1, 1, 1, 1],
+    [1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]
+  ];
+  for (const [a1, a0, b1, b0] of states) {
+    cmp.parts[1].closed = !!a1; cmp.parts[2].closed = !!a0;
+    cmp.parts[3].closed = !!b1; cmp.parts[4].closed = !!b0;
+    const res = cmp.settle(5);
+    assert.equal(Math.abs(res.currents.p9 || 0) > 0.025, a1 === b1 && a0 === b0);
+  }
+  assert.equal(cmp.activity.passed, true);
+
+  // 4. 3-bit Shift Register
+  const sr = bench('logic-shift-reg');
+  sr.wire('1:0', '2:0'); sr.wire('1:0', '3:0'); // + -> Data, + -> Step
+  sr.wire('2:1', '4:0'); sr.wire('4:2', '5:0'); sr.wire('5:2', '6:0'); // Data -> S1 -> S2 -> S3
+  sr.wire('3:1', '4:1'); sr.wire('3:1', '5:1'); sr.wire('3:1', '6:1'); // Step -> CKs
+  sr.wire('4:2', '7:0'); sr.wire('5:2', '8:0'); sr.wire('6:2', '9:0'); // Qs -> Lamps
+  sr.parts[1].closed = true; // Data = 1
+  sr.settle(2); // Initial idle frame before pressing Step
+  for (let pulse = 0; pulse < 3; pulse++) {
+    sr.parts[2].closed = true;
+    sr.settle(3);
+    sr.parts[2].closed = false;
+    sr.settle(3);
+  }
+  assert.equal(sr.parts[3].bit, 1);
+  assert.equal(sr.parts[4].bit, 1);
+  assert.equal(sr.parts[5].bit, 1);
+  assert.equal(sr.activity.passed, true);
+
+  // 5. Chapter 7 new logic levels: AND/OR, Lock, Splitter, Majority
+  const ao = bench('logic-and-or');
+  ao.wire('1:0', '2:0'); ao.wire('1:0', '3:0');
+  ao.wire('2:1', '4:0'); ao.wire('3:1', '4:1');
+  ao.wire('2:1', '5:0'); ao.wire('3:1', '5:1');
+  ao.wire('4:2', '6:0'); ao.wire('5:2', '7:0');
+  for (const [a, b] of [[false, false], [true, false], [false, true], [true, true]]) {
+    ao.parts[1].closed = a; ao.parts[2].closed = b;
+    const res = ao.settle(5);
+    assert.equal(Math.abs(res.currents.p6 || 0) > 0.025, a && b);
+    assert.equal(Math.abs(res.currents.p7 || 0) > 0.025, a || b);
+  }
+  assert.equal(ao.activity.passed, true);
+
+  const lk = bench('logic-lock');
+  lk.wire('1:0', '2:0'); lk.wire('1:0', '3:0');
+  lk.wire('3:1', '4:0'); lk.wire('2:1', '5:0'); lk.wire('4:2', '5:1'); lk.wire('5:2', '6:0');
+  for (const [a, b] of [[false, false], [true, false], [false, true], [true, true]]) {
+    lk.parts[1].closed = a; lk.parts[2].closed = b;
+    const res = lk.settle(5);
+    assert.equal(Math.abs(res.currents.p6 || 0) > 0.025, a && !b);
+  }
+  assert.equal(lk.activity.passed, true);
+
+  const sp = bench('logic-splitter');
+  sp.wire('1:0', '2:0'); sp.wire('1:0', '3:0');
+  sp.wire('3:1', '4:0');
+  sp.wire('2:1', '5:0'); sp.wire('4:2', '5:1');
+  sp.wire('2:1', '6:0'); sp.wire('3:1', '6:1');
+  sp.wire('5:2', '7:0'); sp.wire('6:2', '8:0');
+  for (const [p, r] of [[false, false], [true, false], [false, true], [true, true]]) {
+    sp.parts[1].closed = p; sp.parts[2].closed = r;
+    const res = sp.settle(5);
+    assert.equal(Math.abs(res.currents.p7 || 0) > 0.025, p && !r);
+    assert.equal(Math.abs(res.currents.p8 || 0) > 0.025, p && r);
+  }
+  assert.equal(sp.activity.passed, true);
+
+  const maj = bench('logic-majority');
+  maj.wire('1:0', '2:0'); maj.wire('1:0', '3:0'); maj.wire('1:0', '4:0');
+  maj.wire('2:1', '5:0'); maj.wire('3:1', '5:1'); // A & B
+  maj.wire('3:1', '6:0'); maj.wire('4:1', '6:1'); // B & C
+  maj.wire('2:1', '7:0'); maj.wire('4:1', '7:1'); // A & C
+  maj.wire('5:2', '8:0'); maj.wire('6:2', '8:1');
+  maj.wire('8:2', '9:0'); maj.wire('7:2', '9:1');
+  maj.wire('9:2', '10:0');
+  for (const aBit of [false, true]) {
+    for (const bBit of [false, true]) {
+      for (const cBit of [false, true]) {
+        maj.parts[1].closed = aBit; maj.parts[2].closed = bBit; maj.parts[3].closed = cBit;
+        const res = maj.settle(6);
+        assert.equal(Math.abs(res.currents.p10 || 0) > 0.025, (aBit + bBit + cBit) >= 2);
+      }
+    }
+  }
+  assert.equal(maj.activity.passed, true);
+
+  // 6. Chapter 8 Memory & Counters: Save, Toggle, Runway Ring, Button Counter
+  const sv = bench('mem-save');
+  sv.wire('1:0', '2:0'); sv.wire('1:0', '3:0');
+  sv.wire('2:1', '4:0'); sv.wire('3:1', '4:1'); sv.wire('4:2', '5:0');
+  sv.settle(2);
+  sv.parts[1].closed = true; sv.parts[2].closed = true; sv.settle(3);
+  sv.parts[2].closed = false; sv.parts[1].closed = false; sv.settle(3);
+  assert.equal(sv.parts[3].bit, 1);
+  sv.parts[2].closed = true; sv.settle(3);
+  sv.parts[2].closed = false; sv.settle(3);
+  assert.equal(sv.parts[3].bit, 0);
+  assert.equal(sv.activity.passed, true);
+
+  const tg = bench('mem-toggle');
+  tg.wire('1:0', '2:0'); tg.wire('2:1', '3:1');
+  tg.wire('3:2', '4:0'); tg.wire('4:2', '3:0'); tg.wire('3:2', '5:0');
+  tg.settle(2);
+  for (let p = 0; p < 3; p++) {
+    tg.parts[1].closed = true; tg.settle(3);
+    tg.parts[1].closed = false; tg.settle(3);
+  }
+  assert.equal(tg.activity.passed, true);
+
+  const rg = bench('mem-ring');
+  rg.wire('1:0', '2:0'); rg.wire('1:0', '3:0');
+  rg.wire('2:1', '4:0'); rg.wire('7:2', '4:1'); rg.wire('4:2', '5:0');
+  rg.wire('5:2', '6:0'); rg.wire('6:2', '7:0');
+  rg.wire('3:1', '5:1'); rg.wire('3:1', '6:1'); rg.wire('3:1', '7:1');
+  rg.wire('5:2', '8:0'); rg.wire('6:2', '9:0'); rg.wire('7:2', '10:0');
+  rg.settle(2);
+  rg.parts[1].closed = true; rg.settle(2);
+  rg.parts[2].closed = true; rg.settle(3);
+  rg.parts[2].closed = false; rg.parts[1].closed = false; rg.settle(3);
+  for (let step = 0; step < 3; step++) {
+    rg.parts[2].closed = true; rg.settle(3);
+    rg.parts[2].closed = false; rg.settle(3);
+  }
+  assert.equal(rg.activity.passed, true);
+
+  const cnt = bench('mem-counter');
+  cnt.wire('1:0', '2:0'); cnt.wire('2:1', '3:1');
+  cnt.wire('3:2', '4:0'); cnt.wire('4:2', '3:0');
+  cnt.wire('4:2', '5:1');
+  cnt.wire('5:2', '6:0'); cnt.wire('6:2', '5:0');
+  cnt.wire('3:2', '7:0'); cnt.wire('5:2', '7:1');
+  cnt.settle(3);
+  for (let p = 0; p < 3; p++) {
+    cnt.parts[1].closed = true; cnt.settle(3);
+    cnt.parts[1].closed = false; cnt.settle(3);
+  }
+  assert.equal(cnt.activity.passed, true);
+});
+
+test('relay-boss motor starter latches through NO, runs Machine, halts cleanly on Stop, and rejects non-latching builds', () => {
+  const b = bench('relay-boss');
+  b.wire('1:0', '4:2'); b.wire('1:0', '3:0');
+  b.wire('3:1', '4:0'); b.wire('4:4', '4:0');
+  b.wire('4:4', '5:0'); b.wire('4:3', '6:0');
+  b.wire('4:1', '2:0'); b.wire('2:1', '7:3');
+  let s = b.settle(3);
+  assert.ok(Math.abs(s.currents.p6 || 0) > 0.1, 'Stopped lamp should light while idle');
+  assert.ok(Math.abs(s.currents.p5 || 0) < 0.01, 'Machine motor should be stopped initially');
+
+  b.parts[2].closed = true; s = b.settle(3);
+  assert.ok(Math.abs(s.currents.p5 || 0) > 0.1, 'Machine motor should spin on Start');
+  b.parts[2].closed = false; s = b.settle(6);
+  assert.ok(Math.abs(s.currents.p5 || 0) > 0.1, 'Machine motor should stay latched after Start release');
+  assert.equal(b.activity.passed, false);
+
+  b.parts[1].closed = false; s = b.settle(3);
+  assert.ok(Math.abs(s.currents.p5 || 0) < 0.01, 'Opening Stop should halt Machine');
+  assert.ok(Math.abs(s.currents.p6 || 0) > 0.1, 'Opening Stop should relight Stopped lamp');
+
+  b.parts[1].closed = true; b.settle(3);
+  assert.equal(b.activity.passed, true);
+
+  const bad = bench('relay-boss');
+  bad.wire('1:0', '4:2'); bad.wire('1:0', '3:0');
+  bad.wire('3:1', '4:0');
+  bad.wire('4:4', '5:0'); bad.wire('4:3', '6:0');
+  bad.wire('4:1', '2:0'); bad.wire('2:1', '7:3');
+  bad.settle(3);
+  bad.parts[2].closed = true; bad.settle(3);
+  bad.parts[2].closed = false; bad.settle(6);
+  bad.parts[1].closed = false; bad.settle(3);
+  bad.parts[1].closed = true; bad.settle(3);
+  assert.equal(bad.activity.passed, false);
 });

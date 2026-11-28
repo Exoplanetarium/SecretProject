@@ -8,17 +8,18 @@ export const LIBRARY_UNLOCKS = [
   { kind: 'button', label: 'Push button', shelf: 'power', challengeId: 'lib-button', altLevels: ['relay-latch'] },
   { kind: 'spdt', label: '2-way switch', shelf: 'power', challengeId: 'lib-spdt', altLevels: [] },
   { kind: 'rail', label: 'Bus bar', shelf: 'power', challengeId: 'lib-rail', altLevels: ['relay-inverter'] },
-  { kind: 'fuse', label: 'Glass fuse', shelf: 'power', challengeId: 'lib-fuse', altLevels: [] },
-  { kind: 'diode', label: 'Diode', shelf: 'analog', challengeId: 'lib-diode', altLevels: [] },
+  { kind: 'fuse', label: 'Glass fuse', shelf: 'power', challengeId: 'lib-fuse', altLevels: ['res-fuse'] },
+  { kind: 'diode', label: 'Diode', shelf: 'analog', challengeId: 'lib-diode', altLevels: ['diode-valve'] },
   { kind: 'pot', label: 'Potentiometer', shelf: 'analog', challengeId: 'lib-pot', altLevels: [] },
-  { kind: 'meter', label: 'Voltmeter', shelf: 'analog', challengeId: 'lib-meter', altLevels: [] },
+  { kind: 'meter', label: 'Voltmeter', shelf: 'analog', challengeId: 'lib-meter', altLevels: ['res-divider'] },
   { kind: 'rgb', label: 'RGB light', shelf: 'analog', challengeId: 'lib-rgb', altLevels: [] },
   { kind: 'bell', label: 'Threshold bell', shelf: 'analog', challengeId: 'lib-bell', altLevels: [] },
   { kind: 'gear', label: 'Geared drive', shelf: 'analog', challengeId: 'lib-gear', altLevels: [] },
   { kind: 'servo', label: 'Servo + controller', shelf: 'analog', challengeId: 'lib-servo', altLevels: [] },
   { kind: 'photo', label: 'Photoresistor', shelf: 'logic', challengeId: 'lib-photo', altLevels: [] },
   { kind: 'relay', label: 'Sensor switch', shelf: 'logic', challengeId: 'lib-relay', altLevels: [] },
-  { kind: 'transistor', label: 'NPN transistor', shelf: 'logic', challengeId: 'lib-transistor', altLevels: [] },
+  { kind: 'transistor', label: 'NPN transistor', shelf: 'logic', challengeId: 'lib-transistor', altLevels: ['trans-switch'] },
+  { kind: 'comparator', label: 'Comparator', shelf: 'logic', challengeId: 'lib-comparator', altLevels: ['comp-scale'] },
   { kind: 'coil', label: 'Coil relay', shelf: 'logic', challengeId: 'lib-coil', altLevels: ['relay-inverter'] },
   { kind: 'gate', label: 'Logic gate', shelf: 'logic', challengeId: 'lib-gate', altLevels: ['relay-nand'] },
   { kind: 'clock', label: 'Pulse clock', shelf: 'logic', challengeId: 'lib-clock', altLevels: ['relay-clock'] },
@@ -210,6 +211,28 @@ export const libraryActivities = [
     fix([dev('battery', -6, 1), dev('switch', -3, 3), dev('resistor', 0, 3, { resistance: 100 }), dev('transistor', 2, -1), dev('lamp', 6, -1)]),
     ['battery', 'switch', 'resistor', 'transistor', 'lamp'],
     { ending: 'A small Base-to-Emitter current lets the transistor conduct larger current from C to E.' }
+  ),
+  libChallenge(
+    'lib-comparator',
+    'logic',
+    'comparator',
+    'Comparator',
+    'Compare the Dial against a 3 V split so Q lights the lamp whenever Dial is above 3 V.',
+    'Keep the two 30 Ω resistors across + and − (joined at 0V) to make 3 V on −. Wire Dial across + and 0V with W to +, and wire Q to the lamp.',
+    fix(
+      [
+        dev('battery', -8, 1),
+        dev('pot', -4.5, 3, { wiper: 0.1, role: 'Dial' }),
+        dev('resistor', -4.5, -1, { resistance: 30 }),
+        dev('resistor', -1, -1, { resistance: 30 }),
+        dev('comparator', 2.5, 1),
+        dev('lamp', 6.5, 1),
+        dev('rail', 0, -4.5)
+      ],
+      leads('1.1-7.0', '5.3-7.1', '6.1-7.2', '1.0-3.0', '3.1-4.0', '4.1-7.3')
+    ),
+    ['battery', 'pot', 'resistor', 'comparator', 'lamp', 'rail'],
+    { ending: 'A comparator watches + and − and turns Q ON (6 V) whenever + is higher than −.' }
   ),
   libChallenge(
     'lib-coil',
@@ -467,8 +490,8 @@ export function measureLibrary(lesson, parts, wires, s, a, on) {
     }
     reading = 'Contacts ' + (closed ? 'closed' : 'open') + ' · Lamp ' + (lit(lamp) ? 'on' : 'off');
   } else if (id === 'lib-transistor') {
-    const sw = switches[0];
     const tr = kind('transistor')[0];
+    const sw = switches[0];
     const lamp = lamps[0];
     if (on && !s.short && sw && tr && lamp && settled) {
       if (!sw.closed && !tr.conducting && !lit(lamp)) lib.off = true;
@@ -476,6 +499,17 @@ export function measureLibrary(lesson, parts, wires, s, a, on) {
       if (lib.off && lib.on) a.passed = true;
     }
     reading = 'Base ' + (tr?.conducting ? 'conducting' : 'off') + ' · States ' + ((lib.off ? 1 : 0) + (lib.on ? 1 : 0)) + ' / 2';
+  } else if (id === 'lib-comparator') {
+    const pot = kind('pot')[0];
+    const cmp = kind('comparator')[0];
+    const lamp = lamps[0];
+    const dialOk = pot && Math.abs((s.voltages[pot.id + ':0'] || 0) - (s.voltages[pot.id + ':2'] || 0)) > 4.5;
+    if (on && !s.short && pot && cmp && lamp && dialOk && settled) {
+      if (!cmp.outputHigh && !lit(lamp)) lib.low = true;
+      if (cmp.outputHigh && lit(lamp) && Math.abs(amp(cmp) - amp(lamp)) < 0.01) lib.high = true;
+      if (lib.low && lib.high) a.passed = true;
+    }
+    reading = 'Out ' + (cmp?.outputHigh ? 'ON (6 V)' : 'OFF') + ' · States ' + ((lib.low ? 1 : 0) + (lib.high ? 1 : 0)) + ' / 2';
   } else if (id === 'lib-coil') {
     const coil = kind('coil')[0];
     const litLamps = lamps.filter(lit);
@@ -607,6 +641,10 @@ export const librarySketches = {
   'lib-transistor': [
     'NPN transistor with Base resistor, Collector lamp, and grounded Emitter',
     `${batSketch(20, 18, 86)}<path d="M20 18h140v8M160 46v8l-18 10M116 64v16m0-8H96l-4-5-4 10-4-5H60l-16-8M20 58h24M142 64v22H20"/><circle cx="126" cy="72" r="14"/>${lampSketch(160, 36, 9)}${lbl(148, 57, 'C', 'obs-sm')}${lbl(104, 83, 'B', 'obs-sm')}${lbl(150, 82, 'E', 'obs-sm')}`
+  ],
+  'lib-comparator': [
+    'Comparator comparing a potentiometer dial against a 3 V split to drive a lamp',
+    `${batSketch(14, 14, 92)}<path d="M14 14H72M14 92H172M50 14V32M50 68V92M72 14V18M72 42V60M72 84V92M72 60H104M140 52H172V54M172 72V92"/><path class="paper-cut" d="M66 50h12"/><path d="M63 50H94V44H104"/>${dot(50, 14)}${dot(50, 92)}${dot(72, 60)}${dot(72, 92)}<path d="M50 32v5l-4 2 8 4-8 4 8 4-8 4 8 4-4 2v7M63 50h-9m4-3-4 3 4 3M72 18v3l-4 2 8 3-8 4 8 4-8 3 4 2v3M72 60v3l-4 2 8 3-8 4 8 4-8 3 4 2v3M104 34l36 18-36 18Z"/>${lampSketch(172, 63, 9)}${lbl(112, 47, '+', 'obs-sm')}${lbl(112, 61, '−', 'obs-sm')}${lbl(34, 53, 'Dial', 'obs-sm')}${lbl(86, 68, '3V', 'obs-sm')}`
   ],
   'lib-coil': [
     'Coil relay switching common C between NC and NO lamps',

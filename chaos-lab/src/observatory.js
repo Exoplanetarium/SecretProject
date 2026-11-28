@@ -40,7 +40,11 @@ export const MAINFRAME_FEEDS = [
   { id: 'feed-reg', unit: 'Resistors', name: 'Current regulation', finalId: 'house-breaker' },
   { id: 'feed-time', unit: 'Capacitors', name: 'Timing bank', finalId: 'timer-bell' },
   { id: 'feed-signal', unit: 'LEDs', name: 'Signal display', finalId: 'cable-tester' },
-  { id: 'feed-drive', unit: 'Motors', name: 'Dome drive', finalId: 'dispatch' }
+  { id: 'feed-drive', unit: 'Motors', name: 'Dome drive', finalId: 'dispatch' },
+  { id: 'feed-relay', unit: 'Relays', name: 'Relay switches', finalId: 'relay-boss' },
+  { id: 'feed-trans', unit: 'Transistors', name: 'Transistor stage', finalId: 'trans-boss' },
+  { id: 'feed-cmp', unit: 'Comparators', name: 'Smart triggers', finalId: 'comp-boss' },
+  { id: 'feed-logic', unit: 'Logic', name: 'Logic chips', finalId: 'logic-majority' }
 ];
 
 const dev = (kind, x, z, settings = {}) => ({ kind, x, z, ...settings });
@@ -49,6 +53,140 @@ const fix = (parts, connections = []) => ({
   wires: connections.map(([a, b]) => ({ a: 'p' + a, b: 'p' + b }))
 });
 const leads = (...pairs) => pairs.map(pair => pair.split('-').map(pin => pin.replace('.', ':')));
+
+function relayLevel(id, title, goal, hint, layout, parts, extra = {}) {
+  return {
+    id,
+    unit: 'Relays',
+    title,
+    goal,
+    hint,
+    parts,
+    layout,
+    diagram: id,
+    activity: true,
+    check: s => s.activityPassed === true,
+    ending: extra.ending || goal,
+    ...extra
+  };
+}
+
+export const relayActivities = [
+  relayLevel(
+    'relay-inverter',
+    'Relay switch',
+    'Wire the coil relay so closing the switch turns the lamp off and opening it turns the lamp on.',
+    'Connect battery + through the switch to coil A and coil B back to battery −. Route the lamp through C and NC.',
+    fix(
+      [
+        dev('battery', -7, 2),
+        dev('switch', -3, 2),
+        dev('coil', 1, 0),
+        dev('lamp', 6, 1),
+        dev('rail', -2, -3)
+      ],
+      leads('1.0-2.0', '4.1-1.1')
+    ),
+    ['battery', 'switch', 'coil', 'lamp', 'rail'],
+    {
+      subsystem: 'Inverter bank',
+      unlocks: ['coil', 'rail'],
+      ending: 'Turning on the coil pulls C away from NC, breaking the lamp loop. That flips the switch signal upside down.'
+    }
+  ),
+  relayLevel(
+    'relay-nand',
+    'Two-switch relay',
+    'Wire switches A and B with the coil relay so the lamp stays on unless both switches are closed. Test all four switch states.',
+    'Put both switches in a row feeding one coil, or use two relays side by side. Route the lamp through C and NC.',
+    fix(
+      [
+        dev('battery', -8, 2),
+        dev('switch', -4, 3, { role: 'Input A' }),
+        dev('switch', -4, -1, { role: 'Input B' }),
+        dev('coil', 1, 1),
+        dev('lamp', 6, 1),
+        dev('rail', 0, -3)
+      ],
+      leads('1.0-6.0')
+    ),
+    ['battery', 'switch', 'coil', 'lamp', 'rail'],
+    {
+      subsystem: 'Logic unit',
+      unlocks: ['gate'],
+      ending: 'The lamp stayed lit until both switches were closed together.'
+    }
+  ),
+  relayLevel(
+    'relay-clock',
+    'Relay blinker',
+    'Wire the relay through its own NC pin so the lamp blinks on and off by itself.',
+    'Connect battery + to C, NC to coil A, and coil B to battery −. Put the lamp across coil A and B. Add the 0.01 F capacitor across the coil to slow down the blink.',
+    fix(
+      [
+        dev('battery', -7, 2),
+        dev('coil', -1, 0),
+        dev('capacitor', 3, -2, { capacitance: 0.01, role: '0.01 F' }),
+        dev('lamp', 6, 2)
+      ],
+      leads('1.0-2.2')
+    ),
+    ['battery', 'coil', 'capacitor', 'lamp', 'rail'],
+    {
+      subsystem: 'Clock oscillator',
+      unlocks: ['clock'],
+      ending: 'Feeding a coil through its own NC pin makes it turn itself off and on like a steady blinker.'
+    }
+  ),
+  relayLevel(
+    'relay-latch',
+    'Hold-on button',
+    'Press Set once so the relay holds the lamp on after you let go. Then open Reset to clear it and close Reset again.',
+    'Wire Reset into a bus bar. Connect Set from the bus bar to coil A, and wire C and NO across Set so the relay holds itself on.',
+    fix(
+      [
+        dev('battery', -8, 2),
+        dev('switch', -5, -2, { role: 'Reset', closed: true }),
+        dev('button', -2, 3, { role: 'Set' }),
+        dev('coil', 2, 0),
+        dev('lamp', 7, 1),
+        dev('rail', -1, -2)
+      ],
+      leads('1.0-2.0', '2.1-6.0')
+    ),
+    ['battery', 'switch', 'button', 'coil', 'lamp', 'rail'],
+    {
+      subsystem: 'Memory bank',
+      unlocks: ['button', 'latch'],
+      ending: 'Routing NO back into the coil keeps power locked on after a quick tap until Reset breaks the loop.'
+    }
+  ),
+  relayLevel(
+    'relay-boss',
+    'Motor starter',
+    'Build a real start/stop motor starter with one coil relay: Stopped lamp lights while idle, tapping Start latches Machine on, and opening Stop halts Machine and relights Stopped.',
+    'Wire Stopped through NC and Machine through NO, then latch NO back into the coil so tapping Start keeps it running. Put Stop in the coil return (pin B) or latch path so opening Stop halts the motor and relights Stopped.',
+    fix(
+      [
+        dev('battery', -8.5, 1.5),
+        dev('switch', -5, -2.5, { role: 'Stop', closed: true }),
+        dev('button', -5, 3, { role: 'Start' }),
+        dev('coil', 0, 0.5),
+        dev('motor', 6, 3, { role: 'Machine' }),
+        dev('lamp', 6, -2, { role: 'Stopped' }),
+        dev('rail', 0, -4.5)
+      ],
+      leads('1.1-7.0', '5.1-7.1', '6.1-7.2')
+    ),
+    ['battery', 'switch', 'button', 'coil', 'motor', 'lamp', 'rail'],
+    {
+      challenge: true,
+      target: 'Idle: Stopped · Tap Start: Latched · Stop: Halted',
+      subsystem: 'Motor starter',
+      ending: 'One coil relay handled start latching, emergency stop, and a status lamp all at once.'
+    }
+  )
+];
 
 function moduleLevel(id, title, goal, hint, layout, parts, extra = {}) {
   return {
@@ -69,124 +207,133 @@ function moduleLevel(id, title, goal, hint, layout, parts, extra = {}) {
 
 export const observatoryActivities = [
   moduleLevel(
-    'relay-inverter',
-    'Relay inverter',
-    'Wire the coil relay so closing the switch turns the lamp off and opening it turns the lamp on.',
-    'Connect battery + through the switch to coil A and coil B back to battery −. Route the lamp through C and NC.',
+    'mem-save',
+    'Save one bit',
+    'Store Data inside one memory cell: close Data, press Save so the lamp stays lit after you open Data, then press Save again to clear it.',
+    'Connect Data switch to D, Save button to CK, Q to the lamp, and the − pin to the bus bar.',
     fix(
       [
-        dev('battery', -7, 2),
-        dev('switch', -3, 2),
-        dev('coil', 1, 0),
+        dev('battery', -8, 1.5),
+        dev('switch', -5, 3, { role: 'Data' }),
+        dev('button', -4.5, -1, { role: 'Save' }),
+        dev('latch', 0.5, 1),
         dev('lamp', 6, 1),
-        dev('rail', -2, -3)
+        dev('rail', -1, -4)
       ],
-      leads('1.0-2.0', '4.1-1.1')
+      leads('1.1-6.0', '4.3-6.1', '5.1-6.2')
     ),
-    ['battery', 'switch', 'coil', 'lamp', 'rail'],
+    ['battery', 'switch', 'button', 'latch', 'lamp', 'rail'],
     {
-      subsystem: 'Inverter bank',
-      unlocks: ['coil', 'rail'],
-      ending: 'An energized coil opens NC and breaks the lamp circuit. This is a physical NOT gate.'
+      subsystem: 'Bit store',
+      ending: 'A memory cell takes a snapshot of D whenever CK gets a pulse, then holds that bit even if D changes.'
     }
   ),
   moduleLevel(
-    'relay-nand',
-    'Relay NAND gate',
-    'Wire switches A and B with coil logic so the lamp stays on unless both switches are closed. Test all four switch states.',
-    'Put both switches in series with one coil, or wire two relays with their NC contacts in parallel. Route the lamp through NC.',
+    'mem-toggle',
+    'Toggle button',
+    'Loop one memory cell through a NOT gate so pressing Tap toggles the lamp ON, OFF, and back ON.',
+    'Connect Tap button to CK and Q to the lamp. Also run Q into the NOT gate, and loop NOT Q back into D. Join both − pins to the bus bar.',
     fix(
       [
-        dev('battery', -8, 2),
-        dev('switch', -4, 3, { role: 'Input A' }),
-        dev('switch', -4, -1, { role: 'Input B' }),
-        dev('coil', 1, 1),
-        dev('lamp', 6, 1),
-        dev('rail', 0, -3)
+        dev('battery', -7.5, 1),
+        dev('button', -4.5, 1, { role: 'Tap' }),
+        dev('latch', 0.5, 1.5),
+        dev('gate', 0.5, -2.5, { gateMode: 'NOT', outputHigh: true }),
+        dev('lamp', 6, 1.5),
+        dev('rail', -1.5, -5.5)
       ],
-      leads('1.0-6.0')
+      leads('1.1-6.0', '3.3-6.1', '4.3-6.2', '5.1-6.3')
     ),
-    ['battery', 'switch', 'coil', 'lamp', 'rail'],
+    ['battery', 'button', 'latch', 'gate', 'lamp', 'rail'],
     {
-      subsystem: 'Logic unit',
-      unlocks: ['gate'],
-      ending: 'The lamp only went dark when both inputs were closed. NAND logic can build any digital gate.'
+      subsystem: 'Flip-flop',
+      ending: 'Sending the opposite of Q back to D turns a push button into a click-on, click-off toggle switch.'
     }
   ),
   moduleLevel(
-    'relay-clock',
-    'Relay clock',
-    'Wire the relay through its own NC contact so the status lamp pulses on and off by itself.',
-    'Connect battery + to C, then NC to coil A, and coil B to battery −. Put the lamp across coil A and B. Add the 0.01 F capacitor across the coil for a slower beat.',
+    'logic-shift-reg',
+    'Light chaser',
+    'Chain three memory cells so each press of Step moves your signal across Bit 1, Bit 2, and Bit 3.',
+    'Connect Data to Stage 1 D, Stage 1 Q to Stage 2 D, and Stage 2 Q to Stage 3 D. Wire Step to every CK pin and each Q to its lamp, then close Data and press Step three times.',
     fix(
       [
-        dev('battery', -7, 2),
-        dev('coil', -1, 0),
-        dev('capacitor', 3, -2, { capacitance: 0.01, role: '0.01 F' }),
-        dev('lamp', 6, 2)
+        dev('battery', -9.5, 1.5),
+        dev('switch', -6.5, 3.5, { role: 'Data' }),
+        dev('button', -6.5, -1, { role: 'Step' }),
+        dev('latch', -2.5, 2.5, { role: 'Stage 1' }),
+        dev('latch', 2, 2.5, { role: 'Stage 2' }),
+        dev('latch', 6.5, 2.5, { role: 'Stage 3' }),
+        dev('lamp', -2.5, -2.5, { role: 'Bit 1' }),
+        dev('lamp', 2, -2.5, { role: 'Bit 2' }),
+        dev('lamp', 6.5, -2.5, { role: 'Bit 3' }),
+        dev('rail', -1, -5.5),
+        dev('rail', 4.5, -5.5)
       ],
-      leads('1.0-2.2')
+      leads('1.1-10.0', '4.3-10.1', '7.1-10.1', '5.3-10.2', '8.1-10.2', '10.3-11.0', '6.3-11.1', '9.1-11.1')
     ),
-    ['battery', 'coil', 'capacitor', 'lamp', 'rail'],
+    ['battery', 'switch', 'button', 'clock', 'latch', 'lamp', 'rail'],
     {
-      subsystem: 'Clock oscillator',
-      unlocks: ['clock'],
-      ending: 'Feeding a coil through its own NC contact creates a self-interrupting clock oscillator.'
+      subsystem: 'Light chaser',
+      ending: 'Wiring Q into the next D walks your signal down the row one button press at a time.'
     }
   ),
   moduleLevel(
-    'relay-latch',
-    'One-bit memory',
-    'Press Set so the relay holds the lamp on after you release the button. Then open Reset to clear it and close Reset again.',
-    'Feed Reset into a bus bar. Wire Set from the bus bar to coil A, and wire C and NO in parallel with Set so the relay latches itself on.',
+    'mem-ring',
+    'Runway loop',
+    'Loop Stage 3 back into Stage 1 through the OR chip: close Load, press Step once, open Load, then tap Step to chase the lit lamp around in a circle.',
+    'Feed Load switch and Stage 3 Q into the OR chip wired to Stage 1 D. Chain Stage 1 Q → Stage 2 D → Stage 3 D, wire Step to all three CK pins, and wire Q outputs to lamps 1, 2, 3.',
     fix(
       [
-        dev('battery', -8, 2),
-        dev('switch', -5, -2, { role: 'Reset', closed: true }),
-        dev('button', -2, 3, { role: 'Set' }),
-        dev('coil', 2, 0),
-        dev('lamp', 7, 1),
-        dev('rail', -1, -2)
+        dev('battery', -9.5, 1),
+        dev('switch', -7, 4, { role: 'Load' }),
+        dev('button', -7, -1, { role: 'Step' }),
+        dev('gate', -3.5, 4, { gateMode: 'OR', outputHigh: false }),
+        dev('latch', 0.5, 3, { role: 'Stage 1' }),
+        dev('latch', 4.5, 3, { role: 'Stage 2' }),
+        dev('latch', 8.5, 3, { role: 'Stage 3' }),
+        dev('lamp', 0.5, -2, { role: 'Bit 1' }),
+        dev('lamp', 4.5, -2, { role: 'Bit 2' }),
+        dev('lamp', 8.5, -2, { role: 'Bit 3' }),
+        dev('rail', -2.5, -5),
+        dev('rail', 4.5, -5)
       ],
-      leads('1.0-2.0', '2.1-6.0')
+      leads('1.1-11.0', '4.3-11.1', '5.3-11.2', '8.1-11.2', '11.3-12.0', '6.3-12.1', '9.1-12.1', '7.3-12.2', '10.1-12.2')
     ),
-    ['battery', 'switch', 'button', 'coil', 'lamp', 'rail'],
+    ['battery', 'switch', 'button', 'gate', 'latch', 'lamp', 'rail'],
     {
-      subsystem: 'Memory bank',
-      unlocks: ['button', 'latch'],
-      ending: 'Connecting NO back to the coil seals the relay on until power is broken. This stores one bit of memory.'
+      subsystem: 'Ring chaser',
+      ending: 'Feeding the last stage back into the first turns a shift register into a never-ending light loop.'
     }
   ),
   moduleLevel(
-    'half-adder',
-    'Binary half adder',
-    'Add inputs A and B with logic gates. Light Sum for 1 and Carry for 2 across all four input pairs.',
-    'Select each logic gate to set its mode: XOR drives Sum and AND drives Carry. Join every − pin to the bus bar.',
+    'mem-counter',
+    'Button counter',
+    'Build a 2-bit counter driven by the Step push button so each press counts 0, 1, 2, 3 on the 4-bit readout.',
+    'Loop each cell Q through a NOT gate back to its own D pin. Feed Step into Bit 1 CK, feed Bit 1 NOT output into Bit 2 CK, and wire Q1 and Q2 to readout pins 1 and 2.',
     fix(
       [
-        dev('battery', -9, 1),
-        dev('switch', -6, -2, { role: 'Bit A' }),
-        dev('switch', -6, 3, { role: 'Bit B' }),
-        dev('gate', 0, -2, { gateMode: 'XOR', outputHigh: false }),
-        dev('gate', 0, 3, { gateMode: 'AND', outputHigh: false }),
-        dev('lamp', 6, -2, { role: 'Sum' }),
-        dev('lamp', 6, 3, { role: 'Carry' }),
-        dev('rail', -2, 6.5)
+        dev('battery', -9.5, 1),
+        dev('button', -6.5, 1, { role: 'Step' }),
+        dev('latch', -2, 2, { role: 'Bit 1' }),
+        dev('gate', -2, -3, { gateMode: 'NOT', outputHigh: true }),
+        dev('latch', 3.5, 2, { role: 'Bit 2' }),
+        dev('gate', 3.5, -3, { gateMode: 'NOT', outputHigh: true }),
+        dev('display', 8.5, 0),
+        dev('rail', 0, 5.5)
       ],
-      leads('1.1-8.0', '4.3-8.1', '5.3-8.2')
+      leads('1.1-8.0', '3.3-8.1', '4.3-8.1', '5.3-8.2', '6.3-8.2', '7.4-8.3')
     ),
-    ['battery', 'switch', 'gate', 'lamp', 'rail'],
+    ['battery', 'button', 'gate', 'latch', 'display', 'rail'],
     {
-      subsystem: 'Arithmetic unit',
-      unlocks: ['display'],
-      ending: 'XOR produces the ones bit and AND produces the twos carry. Two gates perform binary addition.'
+      subsystem: 'Step counter',
+      ending: 'Every tap counts up by one in binary across the two memory cells.'
     }
   ),
   moduleLevel(
     'mainframe-boot',
     'Mainframe boot',
     'Build a two-bit binary counter that steps the 4-bit readout through 0, 1, 2, and 3 to boot the Observatory Mainframe.',
-    'Loop each memory cell Q through a NOT gate back to its own D pin. Feed the clock into Bit 1 CK, and feed Bit 1 NOT output into Bit 2 CK. Connect both Q outputs to readout pins 1 and 2.',
+    'Use the same 2-bit counter idea from Button counter, but drive it automatically from the pulse clock instead of a hand button.',
     fix(
       [
         dev('clock', -8, 1, { clockHz: 1 }),
@@ -318,43 +465,127 @@ export function measureObservatory(lesson, parts, wires, s, a, on, dt = 0) {
       'Memory verified'
     ];
     reading = labels[obs.stage] || labels[0];
-  } else if (id === 'half-adder') {
-    const swA = switches.find(p => p.role === 'Bit A') || switches.find(p => p.role !== 'Bit B') || switches[0];
-    const swB = switches.find(p => p.role === 'Bit B' && p !== swA) || switches.find(p => p !== swA);
-    const sumLamp = lamps.find(p => p.role === 'Sum') || lamps.find(p => p.role !== 'Carry') || lamps[0];
-    const carryLamp = lamps.find(p => p.role === 'Carry' && p !== sumLamp) || lamps.find(p => p !== sumLamp);
-    const aBit = swA?.closed ? 1 : 0;
-    const bBit = swB?.closed ? 1 : 0;
-    const sumOn = lit(sumLamp);
-    const carryOn = lit(carryLamp);
-    let swappedHint = false;
-    if (on && !s.short && swA && swB && sumLamp && carryLamp && kind('gate').length >= 1 && settled) {
-      const expSum = (aBit ^ bBit) === 1;
-      const expCarry = (aBit & bBit) === 1;
-      const code = '' + aBit + bBit;
-      if (sumOn === expSum && carryOn === expCarry) {
-        obs.cases.add(code);
-        if (obs.cases.size === 4) a.passed = true;
-      } else if (sumOn === expCarry && carryOn === expSum) {
-        if (!sumLamp.role && !carryLamp.role) {
-          obs.swappedCases ??= new Set();
-          obs.swappedCases.add(code);
-          if (obs.swappedCases.size === 4) a.passed = true;
-        } else {
-          swappedHint = true;
-        }
+  } else if (id === 'relay-boss') {
+    const stop = switches.find(p => p.role === 'Stop') || switches[0];
+    const startBtn = kind('button').find(p => p.role === 'Start') || kind('button')[0];
+    const coil = coils[0];
+    const motor = kind('motor')[0];
+    const lamp = lamps[0];
+    const motorRunning = amp(motor) > 0.1;
+    const lampOn = lit(lamp);
+    if (!on) {
+      obs.stage = 0;
+      obs.sawStart = false;
+      obs.latchHold = 0;
+    } else if (!s.short && stop && startBtn && coil && motor && lamp) {
+      if (startBtn.closed) obs.sawStart = true;
+      if (obs.stage === 0 && stop.closed && !startBtn.closed && !coil.energized && !motorRunning && lampOn) {
+        obs.stage = 1;
+      } else if (obs.stage === 1 && obs.sawStart && coil.energized && motorRunning && !lampOn) {
+        obs.stage = 2;
+        obs.latchHold = 0;
+      } else if (obs.stage === 2 && !startBtn.closed && (!coil.energized || !motorRunning || lampOn)) {
+        obs.stage = 1;
+        obs.sawStart = false;
+        obs.latchHold = 0;
+      } else if (obs.stage === 2 && stop.closed && !startBtn.closed && coil.energized && motorRunning && !lampOn) {
+        obs.latchHold = (obs.latchHold || 0) + dt;
+        if (obs.latchHold >= 0.2) obs.stage = 3;
+      } else if (obs.stage === 3 && !stop.closed && !startBtn.closed && !coil.energized && !motorRunning && lampOn) {
+        obs.stage = 4;
+      } else if (obs.stage === 4 && stop.closed && !startBtn.closed && !coil.energized && !motorRunning && lampOn) {
+        obs.stage = 5;
+        a.passed = true;
       }
     }
-    const doneCases = (!sumLamp?.role && !carryLamp?.role && (obs.swappedCases?.size || 0) > obs.cases.size)
-      ? obs.swappedCases
-      : obs.cases;
-    const marks = ['00', '01', '10', '11'].map(c => c + (doneCases.has(c) ? '✓' : '○')).join(' ');
-    reading = 'A ' + aBit + ' + B ' + bBit + ' = ' + (carryOn ? 1 : 0) + (sumOn ? 1 : 0) + ' · ' + marks + (swappedHint ? ' · Swap Sum & Carry' : '');
-  } else if (id === 'mainframe-boot') {
+    const labels = [
+      'Close Stop & verify Stopped lamp',
+      'Tap Start to latch Machine',
+      'Release Start button',
+      'Latched ON · open Stop to halt',
+      'Halted · close Stop to reset',
+      'Motor starter verified'
+    ];
+    reading = labels[obs.stage] || labels[0];
+  } else if (id === 'mem-save') {
+    const sw = switches[0];
+    const btn = kind('button')[0];
+    const latch = kind('latch')[0];
+    const lamp = lamps[0];
+    const lampOn = lit(lamp);
+    if (on && !s.short && sw && btn && latch && lamp && settled) {
+      const heldOn = !sw.closed && !btn.closed && latch.bit && lampOn && Math.abs(amp(latch) - amp(lamp)) < 0.01;
+      if (obs.stage === 0 && sw.closed && latch.bit && lampOn && Math.abs(amp(latch) - amp(lamp)) < 0.01) obs.stage = 1;
+      if (obs.stage <= 1 && heldOn) obs.stage = 2;
+      if (obs.stage === 2 && !sw.closed && !latch.bit && !lampOn) {
+        obs.stage = 3;
+        a.passed = true;
+      }
+    }
+    const labels = ['Close Data and press Save', 'Open Data so lamp stays lit', 'Keep Data open and press Save to clear', 'Bit save & clear verified'];
+    reading = labels[obs.stage] || labels[0];
+  } else if (id === 'mem-toggle') {
+    const btn = kind('button')[0];
+    const latch = kind('latch')[0];
+    const lamp = lamps[0];
+    const lampOn = lit(lamp);
+    if (on && !s.short && btn && latch && kind('gate').length >= 1 && lamp && settled) {
+      const bitOn = Boolean(latch.bit && lampOn && Math.abs(amp(latch) - amp(lamp)) < 0.01);
+      const validOff = !latch.bit && !lampOn;
+      if (obs.stage === 0 && !btn.closed && bitOn) obs.stage = 1;
+      else if (obs.stage === 1 && !btn.closed && validOff) obs.stage = 2;
+      else if (obs.stage === 2 && !btn.closed && bitOn) {
+        obs.stage = 3;
+        a.passed = true;
+      }
+    }
+    reading = 'Lamp ' + (lit(lamp) ? 'ON' : 'OFF') + ' · Toggles ' + Math.min(3, obs.stage) + ' / 3';
+  } else if (id === 'logic-shift-reg') {
+    const latches = kind('latch');
+    const l1 = lamps.find(p => p.role === 'Bit 1') || lamps[0];
+    const l2 = lamps.find(p => p.role === 'Bit 2') || lamps[1];
+    const l3 = lamps.find(p => p.role === 'Bit 3') || lamps[2];
+    const b1 = lit(l1) ? 1 : 0;
+    const b2 = lit(l2) ? 1 : 0;
+    const b3 = lit(l3) ? 1 : 0;
+    if (on && !s.short && latches.length >= 3 && l1 && l2 && l3 && settled) {
+      if (obs.stage === 0 && b1 === 1 && b2 === 0 && b3 === 0) obs.stage = 1;
+      else if (obs.stage === 1 && b2 === 1 && b3 === 0) obs.stage = 2;
+      else if (obs.stage === 2 && b3 === 1) {
+        obs.stage = 3;
+        a.passed = true;
+      }
+    } else if (!on) {
+      obs.stage = 0;
+    }
+    reading = `Bits: ${b1}${b2}${b3} · Shift stage ${Math.min(3, obs.stage)} / 3`;
+  } else if (id === 'mem-ring') {
+    const latches = kind('latch');
+    const l1 = lamps.find(p => p.role === 'Bit 1') || lamps[0];
+    const l2 = lamps.find(p => p.role === 'Bit 2') || lamps[1];
+    const l3 = lamps.find(p => p.role === 'Bit 3') || lamps[2];
+    const b1 = lit(l1) ? 1 : 0;
+    const b2 = lit(l2) ? 1 : 0;
+    const b3 = lit(l3) ? 1 : 0;
+    const sw = switches[0];
+    if (on && !s.short && latches.length >= 3 && l1 && l2 && l3 && kind('gate').length >= 1 && settled) {
+      if (obs.stage === 0 && b1 === 1 && b2 === 0 && b3 === 0) obs.stage = 1;
+      else if (obs.stage === 1 && !sw?.closed && b1 === 0 && b2 === 1 && b3 === 0) obs.stage = 2;
+      else if (obs.stage === 2 && !sw?.closed && b1 === 0 && b2 === 0 && b3 === 1) obs.stage = 3;
+      else if (obs.stage === 3 && !sw?.closed && b1 === 1 && b2 === 0 && b3 === 0) {
+        obs.stage = 4;
+        a.passed = true;
+      }
+    } else if (!on) {
+      obs.stage = 0;
+    }
+    reading = `Loop: ${b1}${b2}${b3} · Orbit ${Math.min(4, obs.stage)} / 4 (100 → 010 → 001 → 100)`;
+  } else if (id === 'mem-counter' || id === 'mainframe-boot') {
     const latches = kind('latch');
     const disp = kind('display')[0];
     const hasPulse = kind('clock').length > 0 || kind('button').length > 0;
     const val = disp && on ? (s.displayValues?.[disp.id] ?? 0) : 0;
+    const minHold = id === 'mem-counter' ? 0.04 : 0.12;
     if (on && !s.short && latches.length >= 2 && disp && hasPulse) {
       if (obs.candidate !== val) {
         obs.candidate = val;
@@ -362,7 +593,7 @@ export function measureObservatory(lesson, parts, wires, s, a, on, dt = 0) {
       } else {
         obs.holdTime = (obs.holdTime || 0) + dt;
       }
-      if (obs.holdTime >= 0.12) {
+      if (obs.holdTime >= minHold) {
         obs.stable = val;
         if (obs.stage < 4 && obs.stable === obs.stage) {
           obs.stage++;
@@ -442,16 +673,26 @@ export function mainframeProgress(completed, levels) {
 }
 
 export function mainframeBlueprintSvg(progress) {
+  const coreCount = Math.max(1, progress.cores.length);
+  const coreSpan = 492;
+  const coreW = Math.min(68, Math.floor((coreSpan - (coreCount - 1) * 4) / coreCount));
+  const coreStep = coreCount > 1 ? (coreSpan - coreW) / (coreCount - 1) : 0;
   const coreCols = progress.cores.map((c, i) => {
-    const x = 44 + i * 82;
+    const x = Math.round(34 + i * coreStep);
+    const cx = Math.round(x + coreW / 2);
     const cls = c.online ? 'bp-node online' : 'bp-node';
-    return `<g class="${cls}"><rect x="${x}" y="94" width="70" height="44" rx="4"/><line x1="${x + 35}" y1="74" x2="${x + 35}" y2="94"/><line x1="${x + 35}" y1="138" x2="${x + 35}" y2="158"/><circle cx="${x + 35}" cy="108" r="5"/><text x="${x + 35}" y="128" text-anchor="middle">${i + 1}. ${c.subsystem.split(' ')[0]}</text></g>`;
+    return `<g class="${cls}"><rect x="${x}" y="94" width="${coreW}" height="44" rx="4"/><line x1="${cx}" y1="74" x2="${cx}" y2="94"/><line x1="${cx}" y1="138" x2="${cx}" y2="158"/><circle cx="${cx}" cy="108" r="4.5"/><text x="${cx}" y="128" text-anchor="middle">${i + 1}. ${c.subsystem.split(' ')[0]}</text></g>`;
   }).join('');
 
+  const feedCount = Math.max(1, progress.feeds.length);
+  const feedSpan = 492;
+  const feedW = Math.min(84, Math.floor((feedSpan - (feedCount - 1) * 6) / feedCount));
+  const feedStep = feedCount > 1 ? (feedSpan - feedW) / (feedCount - 1) : 0;
   const feedCols = progress.feeds.map((f, i) => {
-    const x = 44 + i * 98;
+    const x = Math.round(34 + i * feedStep);
+    const cx = Math.round(x + feedW / 2);
     const cls = f.online ? 'bp-node online' : 'bp-node';
-    return `<g class="${cls}"><rect x="${x}" y="168" width="84" height="42" rx="4"/><line x1="${x + 42}" y1="158" x2="${x + 42}" y2="168"/><circle cx="${x + 42}" cy="181" r="4"/><text x="${x + 42}" y="199" text-anchor="middle">${f.name.split(' ')[0]}</text></g>`;
+    return `<g class="${cls}"><rect x="${x}" y="168" width="${feedW}" height="42" rx="4"/><line x1="${cx}" y1="158" x2="${cx}" y2="168"/><circle cx="${cx}" cy="181" r="4"/><text x="${cx}" y="199" text-anchor="middle">${f.name.split(' ')[0]}</text></g>`;
   }).join('');
 
   const domeClass = progress.coreBooted ? 'bp-dome online' : 'bp-dome';
@@ -461,8 +702,8 @@ export function mainframeBlueprintSvg(progress) {
       <circle cx="280" cy="46" r="14"/>
       <path d="M280 26v40M260 46h40M267 33l26 26M293 33l-26 26"/>
     </g>
-    <line class="bp-bus" x1="44" y1="74" x2="516" y2="74"/>
-    <line class="bp-bus" x1="44" y1="158" x2="516" y2="158"/>
+    <line class="bp-bus" x1="34" y1="74" x2="526" y2="74"/>
+    <line class="bp-bus" x1="34" y1="158" x2="526" y2="158"/>
     ${coreCols}
     ${feedCols}
   </svg>`;
@@ -478,6 +719,27 @@ const obsLamp = (cx, cy, r = 10) => {
   const k = Math.round(r * 0.6);
   return `<circle class="diagram-lamp" cx="${cx}" cy="${cy}" r="${r}"/><path d="m${cx - k} ${cy - k} ${k * 2} ${k * 2}m-${k * 2} 0 ${k * 2}-${k * 2}"/>`;
 };
+const obsSwitch = (x, y, w = 18) =>
+  `<path d="M${x} ${y}l${w - 3} -7"/><circle cx="${x}" cy="${y}" r="1.6"/><circle cx="${x + w}" cy="${y}" r="1.6"/>`;
+const obsPushBtn = (x, y, w = 18) =>
+  `<circle cx="${x}" cy="${y}" r="1.6"/><circle cx="${x + w}" cy="${y}" r="1.6"/><path d="M${x + 2} ${y - 5}h${w - 4}M${x + w / 2} ${y - 5}v-4m-4 0h8"/>`;
+const obsNotGate = (x, y) =>
+  `<path d="M${x} ${y}l16 9-16 9Z"/><circle cx="${x + 18.2}" cy="${y + 9}" r="2.2"/>`;
+function obsGate(x, y, mode) {
+  if (mode === 'AND') {
+    return `<path d="M${x} ${y}h15a11 11 0 0 1 0 22H${x}Z"/>${obsLbl(x + 12, y + 13.5, 'AND', 'obs-sm')}`;
+  }
+  if (mode === 'NAND') {
+    return `<path d="M${x} ${y}h13a11 11 0 0 1 0 22H${x}Z"/><circle cx="${x + 26.2}" cy="${y + 11}" r="2.2"/>${obsLbl(x + 11.5, y + 13.5, 'NAND', 'obs-sm')}`;
+  }
+  if (mode === 'OR') {
+    return `<path d="M${x} ${y}q6 11 0 22h12q10 0 14-11-4-11-14-11Z"/>${obsLbl(x + 13.5, y + 13.5, 'OR', 'obs-sm')}`;
+  }
+  if (mode === 'NOR') {
+    return `<path d="M${x} ${y}q6 11 0 22h10q10 0 14-11-4-11-14-11Z"/><circle cx="${x + 26.2}" cy="${y + 11}" r="2.2"/>${obsLbl(x + 12, y + 13.5, 'NOR', 'obs-sm')}`;
+  }
+  return `<path d="M${x - 3} ${y}q6 11 0 22M${x} ${y}q6 11 0 22h12q10 0 14-11-4-11-14-11Z"/>${obsLbl(x + 13.5, y + 13.5, 'XOR', 'obs-sm')}`;
+}
 
 export const observatorySketches = {
   'relay-inverter': [
@@ -496,12 +758,32 @@ export const observatorySketches = {
     'Battery, Reset switch, parallel Set button and NO relay contact, coil, and lamp',
     `${obsBattery(18, 18, 88)}<path d="M18 88H172M18 18h16M34 18l22-3M56 18h18M76 13h22M87 13V6M82 6h10M100 18h72M66 18V46h8M74 46l22-9M100 46h12V18M132 18v20M132 68v20M172 18v25M172 63v25"/>${obsDot(66, 18)}${obsDot(112, 18)}${obsDot(132, 18)}${obsDot(132, 88)}${obsCoil(132, 38)}<path class="obs-link" d="M129 66H92V46"/>${obsLamp(172, 53, 10)}${obsLbl(45, 11, 'Rst', 'obs-sm')}${obsLbl(87, 29, 'Set', 'obs-sm')}${obsLbl(75, 58, 'NO', 'obs-sm')}`
   ],
-  'half-adder': [
-    'Battery, input switches A and B, XOR and AND gates, Sum and Carry lamps',
-    `${obsBattery(16, 22, 92)}<path d="M16 92H184M16 22h14V66M30 22l20-8M30 66l20-8M54 22h30M62 22V58h22M54 66h18M72 66v8h12M72 66V38h12"/><path class="paper-cut" d="M72 54v8"/><path d="M72 52v12"/><path d="M84 16h20a14 14 0 0 1 0 28H84ZM84 52h20a14 14 0 0 1 0 28H84ZM118 30h29M165 30h19v62M118 66h29M165 66h9v26"/>${obsDot(30, 22)}${obsDot(62, 22)}${obsDot(72, 66)}${obsDot(174, 92)}${obsLamp(156, 30, 9)}${obsLamp(156, 66, 9)}${obsLbl(42, 12, 'A', 'obs-sm')}${obsLbl(42, 56, 'B', 'obs-sm')}${obsLbl(99, 33, 'XOR')}${obsLbl(99, 69, 'AND')}${obsLbl(156, 15, 'Sum', 'obs-sm')}${obsLbl(156, 52, 'Carry', 'obs-sm')}`
+  'relay-boss': [
+    'Goal: Idle lights Stopped lamp, tapping Start latches Machine motor on, opening Stop halts it and relights Stopped',
+    `<rect x="8" y="14" width="54" height="66" rx="5"/><rect x="73" y="14" width="54" height="66" rx="5"/><rect x="138" y="14" width="54" height="66" rx="5"/><path d="M62 47h11m-3-3 3 3-3 3M127 47h11m-3-3 3 3-3 3"/>${obsLamp(35, 45, 7)}<circle cx="100" cy="45" r="7"/><path d="M96.5 48.5v-7l3.5 4.5 3.5-4.5v7"/>${obsLamp(165, 45, 7)}${obsLbl(35, 27, 'Idle', 'obs-sm')}${obsLbl(35, 69, 'Stopped ON', 'obs-sm')}${obsLbl(100, 27, 'Tap Start', 'obs-sm')}${obsLbl(100, 69, 'Stays ON', 'obs-sm')}${obsLbl(165, 27, 'Open Stop', 'obs-sm')}${obsLbl(165, 69, 'Motor OFF', 'obs-sm')}${obsLbl(100, 95, '1 coil relay · latches until Stop opens', 'obs-sm')}`
+  ],
+  'mem-save': [
+    'Data switch and Save button feeding a memory cell and output lamp',
+    `${obsBattery(14, 16, 92)}<path d="M14 92H172M14 16H34V66M34 32H38M56 32H88M34 66H38M56 66H88M124 44H172V48M172 64V92"/>${obsDot(34, 32)}${obsSwitch(38, 32, 18)}${obsPushBtn(38, 66, 18)}<rect x="88" y="22" width="36" height="54" rx="4"/>${obsLamp(172, 56, 8)}${obsLbl(47, 21, 'Data', 'obs-sm')}${obsLbl(47, 79, 'Save', 'obs-sm')}${obsLbl(78, 29, 'D', 'obs-sm')}${obsLbl(77, 63, 'CK', 'obs-sm')}${obsLbl(134, 41, 'Q', 'obs-sm')}${obsLbl(106, 52, 'MEM', 'obs-sm')}`
+  ],
+  'mem-toggle': [
+    'Memory cell feeding Q through a NOT gate back to D with a Tap button on CK',
+    `${obsBattery(14, 16, 92)}<path d="M14 92H174M14 16H36M36 16V68H40M58 68H80M116 56H174V58M174 74V92M128 56V22H122M101.6 22H68V52H80"/>${obsDot(128, 56)}${obsPushBtn(40, 68, 18)}<rect x="80" y="42" width="36" height="36" rx="4"/><path d="M122 13l-16 9 16 9Z"/><circle cx="103.8" cy="22" r="2.2"/>${obsLamp(174, 66, 8)}${obsLbl(49, 81, 'Tap', 'obs-sm')}${obsLbl(98, 63, 'MEM', 'obs-sm')}${obsLbl(112, 39, 'NOT', 'obs-sm')}${obsLbl(72, 49, 'D', 'obs-sm')}${obsLbl(71, 76, 'CK', 'obs-sm')}`
+  ],
+  'logic-shift-reg': [
+    'Three memory cells chained Q to D sharing one Step pulse line',
+    `${obsBattery(12, 16, 92)}<path d="M12 92H184M12 16H34M52 16H160M76 16V28M118 16V28M160 16V28M30 16V40H34M52 40H64M88 40H106M130 40H148M172 40H184V64M95 40V64M95 76V92M137 40V64M137 76V92M184 76V92"/>${obsDot(30, 16)}${obsDot(76, 16)}${obsDot(118, 16)}${obsDot(95, 40)}${obsDot(137, 40)}${obsDot(95, 92)}${obsDot(137, 92)}${obsPushBtn(34, 16, 18)}${obsSwitch(34, 40, 18)}<rect x="64" y="28" width="24" height="28" rx="3"/><rect x="106" y="28" width="24" height="28" rx="3"/><rect x="148" y="28" width="24" height="28" rx="3"/>${obsLamp(95, 70, 6)}${obsLamp(137, 70, 6)}${obsLamp(184, 70, 6)}${obsLbl(43, 7, 'Step', 'obs-sm')}${obsLbl(43, 53, 'Data', 'obs-sm')}${obsLbl(76, 45, 'S1', 'obs-sm')}${obsLbl(118, 45, 'S2', 'obs-sm')}${obsLbl(160, 45, 'S3', 'obs-sm')}${obsLbl(84, 73, '1', 'obs-sm')}${obsLbl(126, 73, '2', 'obs-sm')}${obsLbl(173, 73, '3', 'obs-sm')}`
+  ],
+  'mem-ring': [
+    'Three chained memory cells with Stage 3 looped back through OR into Stage 1',
+    `${obsBattery(12, 16, 94)}<path d="M12 94H188M12 16H32M50 16H164M90 16V34M126 16V34M164 16V34M26 16V42H30M46 42H57M81 45H82M102 45H118M138 45H156M176 45H186V68M109 45V68M109 80V94M147 45V68M147 80V94M186 80V94"/><path class="paper-cut" d="M86 26h8M122 26h8M160 26h8"/><path d="M186 45V26H52V50H57"/>${obsDot(26, 16)}${obsDot(90, 16)}${obsDot(126, 16)}${obsDot(109, 45)}${obsDot(147, 45)}${obsDot(109, 94)}${obsDot(147, 94)}${obsDot(186, 45)}${obsPushBtn(32, 16, 18)}${obsSwitch(30, 42, 16)}${obsGate(54, 34, 'OR')}<rect x="82" y="34" width="20" height="24" rx="3"/><rect x="118" y="34" width="20" height="24" rx="3"/><rect x="156" y="34" width="20" height="24" rx="3"/>${obsLamp(109, 74, 6)}${obsLamp(147, 74, 6)}${obsLamp(186, 74, 6)}${obsLbl(41, 7, 'Step', 'obs-sm')}${obsLbl(38, 55, 'Load', 'obs-sm')}${obsLbl(92, 49, 'S1', 'obs-sm')}${obsLbl(128, 49, 'S2', 'obs-sm')}${obsLbl(166, 49, 'S3', 'obs-sm')}`
+  ],
+  'mem-counter': [
+    'Step button driving two toggling memory cells into a four-bit readout',
+    `${obsBattery(12, 16, 92)}<path d="M12 92H178V78M12 16H20M36 16V66H52"/><rect x="52" y="44" width="26" height="32" rx="3"/><path d="M78 56h4M82 56V22h4M86 15l11 7-11 7Z"/><circle cx="99.5" cy="22" r="2.2"/><path d="M102 22V8H46V52h6M102 22V66h8M82 56V84H154V50H162"/><rect x="110" y="44" width="26" height="32" rx="3"/><path d="M136 56h6v6h20M142 56V22h-6M136 15l-11 7 11 7Z"/><circle cx="122.5" cy="22" r="2.2"/><path d="M120 22H106V52h4"/><rect x="162" y="38" width="32" height="40" rx="4"/>${obsPushBtn(20, 16, 16)}${obsDot(82, 56)}${obsDot(102, 22)}${obsDot(142, 56)}${obsLbl(28, 7, 'Step', 'obs-sm')}${obsLbl(65, 63, 'B1')}${obsLbl(123, 63, 'B2')}${obsLbl(93, 38, 'NOT', 'obs-sm')}${obsLbl(129, 38, 'NOT', 'obs-sm')}${obsLbl(157, 46, '1', 'obs-sm')}${obsLbl(157, 68, '2', 'obs-sm')}${obsLbl(178, 62, '0..3')}`
   ],
   'mainframe-boot': [
-    'Pulse clock driving two toggling memory cells with NOT feedback into a four-bit readout',
-    `<rect x="8" y="46" width="26" height="28" rx="3"/><path d="M12 65h4v-10h5v10h5v-10h4M34 66h14"/><rect x="48" y="44" width="28" height="32" rx="3"/><path d="M76 56h4M80 56V22h4M84 15l11 7-11 7Z"/><circle cx="97.5" cy="22" r="2.2"/><path d="M100 22V8H42V52h6M100 22V66h8M80 56V88h72V50h8"/><rect x="108" y="44" width="28" height="32" rx="3"/><path d="M136 56h6v6h18M142 56V22h-8M134 15l-11 7 11 7Z"/><circle cx="120.5" cy="22" r="2.2"/><path d="M118 22H104V52h4"/><rect x="160" y="38" width="34" height="40" rx="4"/>${obsDot(80, 56)}${obsDot(100, 22)}${obsDot(142, 56)}${obsLbl(21, 41, 'CLK')}${obsLbl(62, 63, 'B1')}${obsLbl(122, 63, 'B2')}${obsLbl(42, 47, 'D', 'obs-sm')}${obsLbl(40, 74, 'CK', 'obs-sm')}${obsLbl(91, 38, 'NOT', 'obs-sm')}${obsLbl(127, 38, 'NOT', 'obs-sm')}${obsLbl(155, 46, '1', 'obs-sm')}${obsLbl(155, 72, '2', 'obs-sm')}${obsLbl(177, 62, '0..3')}`
+    'Goal: pulse clock automatically steps the readout through 0, 1, 2, and 3',
+    `<rect x="10" y="28" width="34" height="32" rx="4"/><path d="M15 49h4v-10h5v10h5v-10h4M44 44h16m-4-4 4 4-4 4"/><rect x="64" y="30" width="24" height="28" rx="4"/><rect x="98" y="30" width="24" height="28" rx="4"/><rect x="132" y="30" width="24" height="28" rx="4"/><rect x="166" y="30" width="24" height="28" rx="4"/><path d="M88 44h10m-3-3 3 3-3 3M122 44h10m-3-3 3 3-3 3M156 44h10m-3-3 3 3-3 3M178 58v16H76V58m-3 4 3-4 3 4"/>${obsLbl(27, 22, 'CLK', 'obs-sm')}${obsLbl(76, 48, '0')}${obsLbl(110, 48, '1')}${obsLbl(144, 48, '2')}${obsLbl(178, 48, '3')}${obsLbl(127, 90, 'Auto 2-bit count', 'obs-sm')}`
   ]
 };

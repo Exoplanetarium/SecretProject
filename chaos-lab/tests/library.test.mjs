@@ -85,10 +85,10 @@ test('new component solver physics: diode, spdt, pot, fuse, meter, and transisto
   assert.ok(ts.currents.l > 0.2);
 });
 
-test('all 19 The Library builds are accessible, verifiable, and unlock Free build tools', () => {
+test('all 20 The Library builds are accessible, verifiable, and unlock Free build tools', () => {
   assert.equal(units.find(u => u.name === 'Library')?.label, 'The Library');
-  assert.equal(libraryActivities.length, 19);
-  assert.equal(LIBRARY_UNLOCKS.length, 19);
+  assert.equal(libraryActivities.length, 20);
+  assert.equal(LIBRARY_UNLOCKS.length, 20);
   for (const level of libraryActivities) {
     const idx = LEVELS.indexOf(level);
     assert.ok(idx >= 0);
@@ -186,6 +186,13 @@ test('all 19 The Library builds are accessible, verifiable, and unlock Free buil
   tr.parts[1].closed = true; tr.settle();
   assert.equal(tr.activity.passed, true);
 
+  const cmp = bench('lib-comparator');
+  cmp.wire('1:0', '2:2'); cmp.wire('2:0', '7:2'); cmp.wire('2:1', '5:0');
+  cmp.wire('3:1', '5:1'); cmp.wire('5:2', '6:0');
+  cmp.parts[1].wiper = 0.1; cmp.settle();
+  cmp.parts[1].wiper = 0.9; cmp.settle();
+  assert.equal(cmp.activity.passed, true);
+
   const coil = bench('lib-coil');
   coil.wire('1:0', '6:0'); coil.wire('6:1', '2:0'); coil.wire('2:1', '3:0'); coil.wire('3:1', '1:1');
   coil.wire('6:2', '3:2'); coil.wire('3:3', '4:0'); coil.wire('4:1', '1:1');
@@ -234,9 +241,9 @@ test('all 19 The Library builds are accessible, verifiable, and unlock Free buil
   }
 });
 
-test('all 6 new 3D component models build, update, and produce finite transforms', () => {
+test('all 7 new 3D component models build, update, and produce finite transforms', () => {
   const scene = new THREE.Scene();
-  const kinds = ['diode', 'spdt', 'pot', 'fuse', 'meter', 'transistor'];
+  const kinds = ['diode', 'spdt', 'pot', 'fuse', 'meter', 'transistor', 'comparator'];
   const parts = kinds.map((kind, i) => ({
     id: 'p' + (i + 1),
     kind,
@@ -246,7 +253,8 @@ test('all 6 new 3D component models build, update, and produce finite transforms
     wiper: 0.75,
     blown: false,
     fuseRating: 0.35,
-    conducting: true
+    conducting: true,
+    outputHigh: true
   }));
   for (const p of parts) {
     const g = new THREE.Group();

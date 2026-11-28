@@ -20,7 +20,7 @@ export const LEVELS=units.flatMap(({name})=>[
  ...existingLevels.filter(l=>l.unit===name),
  ...finals.filter(l=>l.unit===name)
 ]);
-const RELAY_DELAY=0.08,GATE_DELAY=0.04,TRANSISTOR_DELAY=0.03;
+const RELAY_DELAY=0.08,GATE_DELAY=0.04,TRANSISTOR_DELAY=0.03,COMPARATOR_DELAY=0.04;
 function evalGate(mode,a,b){
  switch(mode){
  case 'NOR':return !(a||b);
@@ -60,6 +60,10 @@ export function applyStep(parts,state){
    const next=state.nextTransistors[p.id];
    if(!!p.conducting!==!!next.conducting)changed=true;
    p.conducting=!!next.conducting;p.transTimer=next.transTimer;
+  }else if(p.kind==='comparator'&&state.nextComparators?.[p.id]){
+   const next=state.nextComparators[p.id];
+   if(!!p.outputHigh!==next.outputHigh)changed=true;
+   p.outputHigh=next.outputHigh;p.compTimer=next.compTimer;
   }
  }
  return changed;
@@ -67,13 +71,13 @@ export function applyStep(parts,state){
  // Backward Euler companion for a 0.10 F capacitor module with 12 Ω series resistance.
 export function solveCircuit(parts,wires,dt=0,{light={},socket='Dead'}={}){
  const battery=parts.find(p=>p.kind==='battery')??(socket!=='Dead'&&parts.find(p=>p.kind==='jack'));
- const empty={currents:{},voltages:{},lit:0,current:0,power:0,short:false,shortWires:[],shortParts:[],shortReason:null,switchUsed:false,resistorUsed:false,series:false,parallel:false,branchControl:false,singleResistor:false,seriesResistors:false,parallelResistors:false,resistorChallenge:false,lampCurrents:[],capacitorVoltages:{},nextRelays:{},nextGates:{},nextLatches:{},nextClocks:{},nextFuses:{},nextTransistors:{},meterVoltages:{},displayValues:{},hasPendingTransition:false};
- const activeSource=battery||parts.some(p=>(p.kind==='capacitor'&&p.charge)||['clock','gate','latch'].includes(p.kind));
+ const empty={currents:{},voltages:{},lit:0,current:0,power:0,short:false,shortWires:[],shortParts:[],shortReason:null,switchUsed:false,resistorUsed:false,series:false,parallel:false,branchControl:false,singleResistor:false,seriesResistors:false,parallelResistors:false,resistorChallenge:false,lampCurrents:[],capacitorVoltages:{},nextRelays:{},nextGates:{},nextLatches:{},nextClocks:{},nextFuses:{},nextTransistors:{},nextComparators:{},meterVoltages:{},displayValues:{},hasPendingTransition:false};
+ const activeSource=battery||parts.some(p=>(p.kind==='capacitor'&&p.charge)||['clock','gate','latch','comparator'].includes(p.kind));
  if(!activeSource||!parts.length)return empty;
  const nodes=parts.flatMap(p=>Array.from({length:pins[p.kind]?.length??2},(_,i)=>p.id+':'+i)),index=new Set(nodes);
  const reversed=battery?.kind==='jack'?socket==='Reverse':battery?.reversed;
  const positive=battery?.id+':'+(reversed?'1':'0'),negative=battery?.id+':'+(reversed?'0':'1'),full=battery?.voltage||6;
- const refPart=parts.find(p=>p.kind==='clock')??parts.find(p=>p.kind==='gate')??parts.find(p=>p.kind==='latch')??parts.find(p=>p.kind==='display');
+ const refPart=parts.find(p=>p.kind==='clock')??parts.find(p=>p.kind==='gate')??parts.find(p=>p.kind==='latch')??parts.find(p=>p.kind==='comparator')??parts.find(p=>p.kind==='display');
  const refNode=refPart?refPart.id+':'+(refPart.kind==='clock'?1:refPart.kind==='display'?4:3):nodes[0];
  const fixed=battery?new Map([[positive,full],[negative,0]]):new Map([[refNode,0]]);
  const unknown=nodes.filter(n=>!fixed.has(n)),ui=new Map(unknown.map((n,i)=>[n,i])),n=unknown.length;
@@ -152,6 +156,11 @@ export function solveCircuit(parts,wires,dt=0,{light={},socket='Dead'}={}){
    if(p.conducting)edges.push({a:p.id+':0',b:p.id+':2',r:3,offset:.2,id:p.id,partId:p.id,led:true,on:true});
    continue;
   }
+  if(p.kind==='comparator'){
+   edges.push({a:p.id+':0',b:p.id+':3',r:1e6,offset:0},{a:p.id+':1',b:p.id+':3',r:1e6,offset:0});
+   edges.push({a:p.id+':2',b:p.id+':3',r:5,offset:p.outputHigh?6:0,id:p.id,partId:p.id,driver:true});
+   continue;
+  }
   if(p.kind==='battery'||p.kind==='jack'||(p.kind==='switch'||p.kind==='button')&&!p.closed)continue;
   const r={switch:.01,button:.01,lamp:20,resistor:p.resistance||30,motor:30,capacitor:12+dt/capacity(p),led:20,photo:light[p.id]??600,bell:1e7,gear:30,servo:60}[p.kind];
   if(r)edges.push({a:p.id+':0',b:p.id+':1',r,offset:p.kind==='capacitor'?p.charge||0:p.kind==='led'?2:0,id:p.id,partId:p.id,led:p.kind==='led',on:true});
@@ -198,7 +207,7 @@ export function solveCircuit(parts,wires,dt=0,{light={},socket='Dead'}={}){
   }
   for(let i=0;i<m;i++)localIdx[compNodes[i]]=-1;
  }
- const currents={},capacitorVoltages={},nextRelays={},nextGates={},nextLatches={},nextClocks={},nextFuses={},nextTransistors={},meterVoltages={},displayValues={};
+ const currents={},capacitorVoltages={},nextRelays={},nextGates={},nextLatches={},nextClocks={},nextFuses={},nextTransistors={},nextComparators={},meterVoltages={},displayValues={};
  let current=0,hasPendingTransition=false;
  for(const e of edges){
   const amps=e.on===false?0:(voltages[e.a]-voltages[e.b]-e.offset)/e.r;
@@ -303,9 +312,18 @@ export function solveCircuit(parts,wires,dt=0,{light={},socket='Dead'}={}){
     else nextTransistors[p.id]={conducting:was,transTimer:timer};
     hasPendingTransition=true;
    }else nextTransistors[p.id]={conducting:was,transTimer:0};
+  }else if(p.kind==='comparator'){
+   const vPlus=voltages[p.id+':0']||0,vMinus=voltages[p.id+':1']||0,diff=vPlus-vMinus;
+   const was=!!p.outputHigh,want=was?diff>-.15:diff>=.15;
+   if(!short&&want!==was){
+    const timer=(p.compTimer||0)+dt;
+    if(timer>=COMPARATOR_DELAY)nextComparators[p.id]={outputHigh:want,compTimer:0};
+    else nextComparators[p.id]={outputHigh:was,compTimer:timer};
+    hasPendingTransition=true;
+   }else nextComparators[p.id]={outputHigh:was,compTimer:0};
   }
  }
  const activeResistors=parts.filter(p=>p.kind==='resistor'&&Math.abs(currents[p.id]||0)>.025),sameCurrent=p=>Math.abs(Math.abs(currents[p.id]||0)-current)<.0001;const singleResistor=lamps.length===1&&lit.length===1&&activeResistors.length===1&&sameCurrent(lamps[0])&&activeResistors.every(sameCurrent),seriesResistors=lamps.length===1&&lit.length===1&&activeResistors.length===2&&sameCurrent(lamps[0])&&activeResistors.every(sameCurrent);const parallelResistors=lamps.length===1&&lit.length===1&&activeResistors.length===2&&sameCurrent(lamps[0])&&Math.abs(activeResistors.reduce((a,p)=>a+Math.abs(currents[p.id]),0)-current)<.0001&&Math.abs(Math.abs(voltages[activeResistors[0]?.id+':0']-voltages[activeResistors[0]?.id+':1'])-Math.abs(voltages[activeResistors[1]?.id+':0']-voltages[activeResistors[1]?.id+':1']))<.01;
  const lampCurrents=lamps.map(p=>Math.abs(currents[p.id]||0)).sort((a,b)=>a-b),resistorCurrents=activeResistors.map(p=>Math.abs(currents[p.id]||0)).sort((a,b)=>a-b);const resistorChallenge=!short&&lamps.length===2&&lit.length===2&&activeResistors.length===2&&Math.abs(lampCurrents[0]-.1)<.002&&Math.abs(lampCurrents[1]-.2)<.002&&Math.abs(resistorCurrents[0]-.1)<.002&&Math.abs(resistorCurrents[1]-.2)<.002&&Math.abs(current-.3)<.003;
- return {...empty,voltages,currents,relayContacts,capacitorVoltages,nextRelays,nextGates,nextLatches,nextClocks,nextFuses,nextTransistors,meterVoltages,displayValues,hasPendingTransition,current,singleResistor,seriesResistors,parallelResistors,resistorChallenge,lampCurrents,power:current*full,short,shortWires,shortParts,shortReason,lit:lit.length,switchUsed:parts.some(p=>p.kind==='switch'&&Math.abs(currents[p.id]||0)>.025),resistorUsed:parts.some(p=>p.kind==='resistor'&&Math.abs(currents[p.id]||0)>.025),series:lit.length===2&&lit.every(p=>Math.abs(voltages[p.id+':0']-voltages[p.id+':1'])<full*.65),parallel:lit.length===2&&lit.every(p=>Math.abs(voltages[p.id+':0']-voltages[p.id+':1'])>full*.9)};
+ return {...empty,voltages,currents,relayContacts,capacitorVoltages,nextRelays,nextGates,nextLatches,nextClocks,nextFuses,nextTransistors,nextComparators,meterVoltages,displayValues,hasPendingTransition,current,singleResistor,seriesResistors,parallelResistors,resistorChallenge,lampCurrents,power:current*full,short,shortWires,shortParts,shortReason,lit:lit.length,switchUsed:parts.some(p=>p.kind==='switch'&&Math.abs(currents[p.id]||0)>.025),resistorUsed:parts.some(p=>p.kind==='resistor'&&Math.abs(currents[p.id]||0)>.025),series:lit.length===2&&lit.every(p=>Math.abs(voltages[p.id+':0']-voltages[p.id+':1'])<full*.65),parallel:lit.length===2&&lit.every(p=>Math.abs(voltages[p.id+':0']-voltages[p.id+':1'])>full*.9)};
 }

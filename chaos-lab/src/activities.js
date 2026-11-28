@@ -1,8 +1,12 @@
-import {OBSERVATORY_DEVICE_NAMES,OBSERVATORY_PINS,observatoryActivities,measureObservatory} from './observatory.js';
+import {OBSERVATORY_DEVICE_NAMES,OBSERVATORY_PINS,relayActivities,observatoryActivities,measureObservatory} from './observatory.js';
+import {transistorActivities,measureTransistors} from './transistors.js';
+import {foundationActivities,measureFoundations} from './foundations.js';
+import {comparatorActivities,measureComparators} from './comparators.js';
+import {logicActivities,measureLogic} from './logic-unit.js';
 import {libraryActivities,measureLibrary} from './library.js';
 import {MASTER_DEVICE_NAMES,MASTER_PINS,masterActivities,measureMaster} from './master.js';
-export const deviceNames={photo:'Photoresistor',rgb:'RGB light',bell:'Threshold bell',gear:'Geared drive',servo:'Servo + controller',jack:'Test socket',relay:'Sensor switch',diode:'Diode',spdt:'2-way switch',pot:'Potentiometer',fuse:'Glass fuse',meter:'Voltmeter',transistor:'NPN transistor',...OBSERVATORY_DEVICE_NAMES,...MASTER_DEVICE_NAMES};
-export const pins={rgb:['R','G','B','−'],relay:['L1','L2','C','NO'],servo:['+','−'],gear:['+','−'],bell:['+','−'],jack:['1','2'],diode:['A','K'],spdt:['C','A','B'],pot:['1','W','2'],meter:['+','−'],transistor:['C','B','E'],...OBSERVATORY_PINS,...MASTER_PINS};
+export const deviceNames={photo:'Photoresistor',rgb:'RGB light',bell:'Threshold bell',gear:'Geared drive',servo:'Servo + controller',jack:'Test socket',relay:'Sensor switch',diode:'Diode',spdt:'2-way switch',pot:'Potentiometer',fuse:'Glass fuse',meter:'Voltmeter',transistor:'NPN transistor',comparator:'Comparator',...OBSERVATORY_DEVICE_NAMES,...MASTER_DEVICE_NAMES};
+export const pins={rgb:['R','G','B','−'],relay:['L1','L2','C','NO'],servo:['+','−'],gear:['+','−'],bell:['+','−'],jack:['1','2'],diode:['A','K'],spdt:['C','A','B'],pot:['1','W','2'],meter:['+','−'],transistor:['C','B','E'],comparator:['+','−','Q','0V'],...OBSERVATORY_PINS,...MASTER_PINS};
 export const channelDrops=[2,3.15,3.25];
 export const capacity=p=>[.01,.1,.22].includes(p.capacitance)?p.capacitance:.1;
 export function photoOhms(x,shadow,z=0){return Math.round(600+9400*Math.exp(-((x-shadow)**2+z*z)/3));}
@@ -25,22 +29,28 @@ function activity(id,unit,title,goal,hint,layout,parts,extra={}){
  return {id,unit,title,goal,hint,parts,layout,diagram:id,activity:true,check:s=>s.activityPassed===true,ending:extra.ending||goal,...extra};
 }
 export const activities=[
- activity('house-breaker','Resistors','Keep the lights on','Keep the reading lamp bright and both stair lights at least 0.10 A each under the 0.42 A breaker limit. Use one resistor.','Reading is already on its own bright branch (0.30 A). Wire Landing, Stairs, and the resistor in one series branch across the battery, then lower the resistor to 10 or 20 Ω so both stair lights reach 0.10 A under the 0.42 A breaker.',fixture([battery,device('lamp',-6,-2,{role:'Reading'}),device('lamp',1,-2,{role:'Landing'}),device('lamp',7,-2,{role:'Stairs'}),device('resistor',0,3,{resistance:30})],leads('1.0-2.0','2.1-1.1')),['battery','lamp','resistor'],{challenge:true,target:'Reading ≥ 0.28 A · Stairs ≥ 0.10 A each · Total ≤ 0.42 A',ending:'Putting the two stair lights in series let one branch current power both under the 0.42 A breaker while the reading lamp stayed bright.'}),
+ activity('house-breaker','Resistors','Keep the lights on','Keep the reading lamp bright and both stair lights at least 0.10 A each under the 0.42 A breaker limit. Use one resistor.','Reading already draws 0.30 A on its own branch, leaving only 0.12 A before the 0.42 A breaker trips. Think about where your one resistor belongs and what value keeps both stair lights at least 0.10 A.',fixture([battery,device('lamp',-6,-2,{role:'Reading'}),device('lamp',1,-2,{role:'Landing'}),device('lamp',7,-2,{role:'Stairs'}),device('resistor',0,3,{resistance:30})],leads('1.0-2.0','2.1-1.1')),['battery','lamp','resistor'],{challenge:true,target:'Reading ≥ 0.28 A · Stairs ≥ 0.10 A each · Total ≤ 0.42 A',ending:'Putting the two stair lights in series let one branch current power both under the 0.42 A breaker while the reading lamp stayed bright.'}),
  activity('capacity-compare','Capacitors','Capacitor size','Charge both capacitors to 6 V. Watch which lamp stays on longer.','Each isolated loop uses the same 20 Ω lamp. Select Charge and release and compare the gauges.',fixture([device('capacitor',-4,-1,{capacitance:.1,role:'0.10 F'}),device('lamp',-4,2),device('capacitor',4,-1,{capacitance:.22,role:'0.22 F'}),device('lamp',4,2)],leads('1.0-2.0','1.1-2.1','3.0-4.0','3.1-4.1')),['capacitor','lamp'],{ending:'At the same voltage the larger capacitor stored more charge and lit its lamp for longer.'}),
  activity('timer-bell','Capacitors','Three-second bell','Make the bell ring three seconds after Test. It senses 3 V across its terminals.','Charge the capacitor through a resistor. Put the bell across the capacitor module. Compare your times as you adjust resistance.',fixture([battery,resistor,cap,device('bell',7,2)],leads('1.0-2.0','2.1-3.0','3.1-1.1')),['battery','resistor','capacitor','bell'],{challenge:true,target:'2.7–3.3 seconds',ending:'The capacitor voltage crossed the bell threshold at the requested time.'}),
  activity('led-series','LEDs','Series footlights','Power both red footlights. Unplug one lead with the pliers and see what happens.','In one loop the same current passes through both LEDs.',fixture(twoLeds,leads('1.0-2.0','2.1-3.0','3.1-1.1')),['battery','led'],{ending:'Opening the shared current path put both footlights out.'}),
  activity('led-parallel','LEDs','Parallel footlights','Wire two parallel stage lights. Pull one lead and keep the show lit.','Each signal needs its own path across the supply. Both signals have built-in resistors.',fixture(twoLeds,leads('1.0-2.0','2.1-1.1')),['battery','led'],{ending:'The other branch kept carrying current when one light was unplugged.'}),
  activity('rgb-mix','LEDs','RGB stage cue','Wire a magenta cue on the curtain. Use the four terminals on the stage light.','Connect the common negative return. Red and blue together make magenta. Each channel includes a protective resistor.',fixture([battery,device('rgb',3,0)],leads('2.3-1.1')),['battery','rgb'],{ending:'Red and blue light mixed on the curtain.'}),
  activity('rgb-fade','LEDs','Fading color cue','Charge the capacitor and release it through the magenta light. Watch which color lingers.','The modeled blue emitter needs more voltage than red. Compare their branch currents as the capacitor runs down.',fixture([device('capacitor',-3,0,{capacitance:.01}),device('rgb',3,0)],leads('1.0-2.0','1.0-2.2','1.1-2.3')),['capacitor','rgb'],{ending:'The blue channel faded first as the supply voltage fell. The remaining cue was red.'}),
- activity('cable-tester','LEDs','Mystery cables','Build a tester with two opposite-facing signals. Calibrate both directions, then identify all three cables.','Wire the red and green signals in opposite directions across the socket. Try known + and −. A dead cable lights neither signal.',fixture([device('jack',-4,1),led(2,-2,'red'),led(5,2,'green')]),['jack','led'],{challenge:true,target:'Identify three cables',ending:'Your tester distinguished both polarities and an unpowered cable.'}),
+ activity('cable-tester','LEDs','Mystery cables','Build a tester with two opposite-facing signals. Calibrate both directions, then identify all three cables.','Remember how LEDs only light in one direction. Hook up both colored LEDs on the socket so Known + lights one, Known − lights the other, and a dead cable lights neither.',fixture([device('jack',-4,1),led(2,-2,'red'),led(5,2,'green')]),['jack','led'],{challenge:true,target:'Identify three cables',ending:'Your tester distinguished both polarities and an unpowered cable.'}),
  activity('belt-drive','Motors','DC belt drive','Run the empty belt forward, then reverse it. Watch the crate move both ways.','The motor is coupled to the belt. Apply power, select the battery, then reverse polarity.',fixture([battery,device('motor',4,2)],leads('1.0-2.0','2.1-1.1')),['battery','motor'],{machine:true,ending:'Changing motor polarity reversed the belt travel.'}),
  activity('loaded-drive','Motors','Geared drive','Try the direct drive on the loaded incline, then move the supply leads to the geared drive. Deliver the crate.','The direct drive stalls under this load. The reduction gearbox trades speed for turning force.',fixture([device('battery',-5,4),device('motor',1.5,4.5),device('gear',5.5,-2.5)],leads('1.0-2.0','2.1-1.1')),['battery','motor','gear'],{machine:true,ending:'The geared output delivered enough turning force to climb with the load.'}),
  activity('servo-gate','Motors','Servo sorting gate','Power the servo controller. Move its dial to aim the gate at each chute.','Connect + and −, then use the Gate angle dial. The controller supplies the servo position signal.',fixture([battery,device('servo',3,2)],leads('1.0-2.0','2.1-1.1')),['battery','servo'],{machine:true,ending:'The controller commanded an angle and the servo held the gate there.'}),
  activity('dispatch','Motors','Dispatch line','Deliver a loaded crate to the requested bin. Choose a drive and set the powered gate.','Wire the geared drive and servo controller across the battery. Aim the gate and send a crate. A second order can use the optical sensor to light an arrival signal.',fixture([device('battery',-5,4),device('motor',1,4.5),device('gear',5,-2.5),device('servo',8.5,2.5)],leads('1.0-2.0','2.1-1.1')),['battery','motor','gear','servo','switch','photo','relay','led'],{machine:true,challenge:true,target:'Deliver to the right bin',ending:'The drive carried the load and the servo routed it. Try the sensor order to signal the next arrival.'}),
+ ...foundationActivities,
+ ...relayActivities,
+ ...transistorActivities,
+ ...comparatorActivities,
+ ...logicActivities,
  ...observatoryActivities,
  ...libraryActivities,
  ...masterActivities
 ];
+const FOUNDATION_IDS=new Set(foundationActivities.map(l=>l.id));
 export function freshActivity(){
  const cables=['Forward','Reverse','Dead'];
  for(let i=cables.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[cables[i],cables[j]]=[cables[j],cables[i]];}
@@ -54,7 +64,11 @@ export function conditions(parts,a,id){
  return {light,socket:socketMode(a)};
 }
 export function measureActivity(lesson,parts,wires,s,a,on,dt){
- if(lesson.unit==='Observatory')return measureObservatory(lesson,parts,wires,s,a,on,dt);
+ if(FOUNDATION_IDS.has(lesson.id))return measureFoundations(lesson,parts,wires,s,a,on,dt);
+ if(lesson.unit==='Transistors')return measureTransistors(lesson,parts,wires,s,a,on,dt);
+ if(lesson.unit==='Comparators')return measureComparators(lesson,parts,wires,s,a,on,dt);
+ if(lesson.unit==='Logic')return measureLogic(lesson,parts,wires,s,a,on,dt);
+ if(lesson.unit==='Observatory'||lesson.unit==='Relays')return measureObservatory(lesson,parts,wires,s,a,on,dt);
  if(lesson.library)return measureLibrary(lesson,parts,wires,s,a,on,dt);
  if(lesson.master)return measureMaster(lesson,parts,wires,s,a,on,dt);
  const id=lesson.id,kind=k=>parts.filter(p=>p.kind===k),amp=p=>on&&p?Math.abs(s.currents[p.id]||0):0;

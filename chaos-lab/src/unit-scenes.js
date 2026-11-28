@@ -248,6 +248,25 @@ function logicGate(part,g,paint,steel,rim){
  }
 }
 
+function comparatorChip(part,g,paint,steel,rim){
+ const body=paint('#213a3d'),brass=paint('#c99d53',.58),jewel=paint('#aa6c33');
+ jewel.emissive.set('#ffbd4a');jewel.emissiveIntensity=0;
+ box(g,body,0,.64,-.95,1.88,.76,1.06);
+ box(g,brass,0,1.03,-.95,1.92,.06,1.10);
+ for(const x of [-.82,.82])for(const z of [-1.4,-.5])screw(g,rim,steel,x,1.07,z,.055);
+ const lamp=mesh(g,new T.SphereGeometry(.14,16,12),jewel,0,.70,-.39);
+ lamp.scale.z=.45;part.compJewel=jewel;
+ const canvas=makeCanvas(256,128);
+ if(canvas){
+  const ctx=canvas.getContext('2d'),tex=new T.CanvasTexture(canvas);
+  tex.colorSpace=T.SRGBColorSpace;
+  drawPlate(ctx,256,128,'#1b3033','#f3dfb0','CMP +>−','bold 54px monospace');
+  const plate=mesh(g,new T.PlaneGeometry(1.42,.71),new T.MeshBasicMaterial({map:tex}),0,1.065,-.95);
+  plate.rotation.x=-Math.PI/2;plate.userData.ownedMaterial=true;
+  part.compCanvas=canvas;part.compCtx=ctx;part.compTex=tex;
+ }
+}
+
 function memoryLatch(part,g,paint,steel,rim){
  const slate=paint('#2d3a4b'),brass=paint('#cba055',.58),jewel=paint('#8a5a2c');
  jewel.emissive.set('#ffbe4c');jewel.emissiveIntensity=0;
@@ -717,6 +736,7 @@ export function makeUnitPart(part,g){
  else if(part.kind==='fuse')glassFuse(part,g,paint,steel,rim);
  else if(part.kind==='meter')voltMeter(part,g,paint,steel,rim);
  else if(part.kind==='transistor')npnTransistor(part,g,paint,steel,rim);
+ else if(part.kind==='comparator')comparatorChip(part,g,paint,steel,rim);
  else if(part.kind==='cannon')ballCannon(part,g,paint,steel,rim);
  g.userData.instrumentMaterials=mats;
 }
@@ -815,6 +835,8 @@ export function updateDeviceVisual(part,state,activity,powered,elapsed=0){
   }
  }else if(part.transJewel){
   part.transJewel.emissiveIntensity=powered&&part.conducting?2.6:0;
+ }else if(part.compJewel){
+  part.compJewel.emissiveIntensity=powered&&part.outputHigh?3:0;
  }else if(part.cannonJewel){
   const v=powered?Math.abs((state.voltages?.[part.id+':0']||0)-(state.voltages?.[part.id+':1']||0)):0;
   const sweet=v>=3.8&&v<=4.7;

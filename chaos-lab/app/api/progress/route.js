@@ -87,27 +87,33 @@ export async function PUT(request) {
     throw error;
   }
   if (input?.userId !== userId) return Response.json({ error: 'Account mismatch.' }, { status: 403, headers: cacheHeaders });
+  const skipMerge = input?.skipMerge === true;
   const progress = canonicalProgress(input.progress);
   if (!progress) return Response.json({ error: 'Invalid progress format.' }, { status: 400, headers: cacheHeaders });
 
-  // Merge monotonically against any existing server blob so stale tabs never overwrite newer completions
-  let existingProgress = null;
-  try {
-    const existing = await get(pathname(userId), { access: 'private', useCache: false });
-    if (existing?.statusCode === 200 && existing.stream && existing.blob.size <= maxBytes) {
-      const rawExisting = JSON.parse(await new Response(existing.stream).text());
-      existingProgress = canonicalProgress(rawExisting);
+  let toSave = progress;
+  if (!skipMerge) {
+    // Merge monotonically against any existing server blob so stale tabs never overwrite newer completions
+    let existingProgress = null;
+    try {
+      const existing = await get(pathname(userId), { access: 'private', useCache: false });
+      if (existing?.statusCode === 200 && existing.stream && existing.blob.size <= maxBytes) {
+        const rawExisting = JSON.parse(await new Response(existing.stream).text());
+        existingProgress = canonicalProgress(rawExisting);
+      }
+    } catch (error) {
+      if (error instanceof BlobError) return storageUnavailable(error);
     }
-  } catch (error) {
-    if (error instanceof BlobError) return storageUnavailable(error);
+    toSave = existingProgress ? mergeProgress(existingProgress, progress) : progress;
   }
 
-  const merged = existingProgress ? mergeProgress(existingProgress, progress) : progress;
-
   try {
-    await put(pathname(userId), JSON.stringify(merged), { access: 'private', addRandomSuffix: false, allowOverwrite: true, contentType: 'application/json', cacheControlMaxAge: 0 });
+    await put(pathname(userId), JSON.stringify(toSave), { access: 'private', addRandomSuffix: false, allowOverwrite: true, contentType: 'application/json', cacheControlMaxAge: 0 });
   } catch (error) {
     return storageUnavailable(error);
   }
-  return Response.json({ saved: true, progress: merged }, { headers: cacheHeaders });
+  return Response.json(
+    skipMerge ? { saved: true, updatedAt: toSave.updatedAt } : { saved: true, progress: toSave },
+    { headers: cacheHeaders }
+  );
 }
